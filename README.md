@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/CameronScarpati/vol-surface-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/CameronScarpati/vol-surface-engine/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 An implied volatility surface construction tool that pulls live SPY options data, extracts IV via Newton-Raphson, fits the SVI parameterization (Gatheral 2004), enforces no-arbitrage constraints via Durrleman conditions, and renders everything in an interactive Streamlit dashboard.
 
@@ -134,34 +136,38 @@ python -m pytest tests/ -v
 ```
 vol-surface-engine/
 ├── .github/
-│   └── workflows/ci.yml        # GitHub Actions CI (Python 3.10-3.12)
+│   └── workflows/ci.yml           # GitHub Actions CI (lint + test matrix)
 ├── data/
-│   ├── download.py              # CLI: fetch real options data
-│   └── spy_options.parquet      # Cached options chain
+│   ├── download.py                # CLI: fetch real options data
+│   └── spy_options.parquet        # Cached options chain
 ├── src/
-│   ├── data_loader.py           # Phase 1: options chain fetching + cleaning
-│   ├── iv_engine.py             # Phase 2: Black-Scholes + Newton-Raphson IV
-│   ├── svi_fitter.py            # Phase 3: SVI calibration per expiry slice
-│   ├── arbitrage.py             # Phase 4: Durrleman + calendar-spread checks
-│   └── surface.py               # Pipeline orchestrator (VolSurface)
+│   ├── __init__.py                # Public API: VolSurface, build_surface, …
+│   ├── data_loader.py             # Phase 1: options chain fetching + cleaning
+│   ├── iv_engine.py               # Phase 2: Black-Scholes + Newton-Raphson IV
+│   ├── svi_fitter.py              # Phase 3: SVI calibration per expiry slice
+│   ├── arbitrage.py               # Phase 4: Durrleman + calendar-spread checks
+│   └── surface.py                 # Pipeline orchestrator (VolSurface)
 ├── dashboard/
-│   ├── app.py                   # Streamlit main app
+│   ├── app.py                     # Streamlit main app
 │   └── components/
-│       ├── surface_3d.py        # 3D volatility surface (Plotly)
-│       ├── smile_slice.py       # Per-expiry smile with bid-ask bands
-│       ├── residual_heatmap.py  # Strike × expiry mispricing heatmap
-│       ├── arbitrage_diag.py    # Durrleman g(k) + calendar diagnostics
-│       └── term_structure.py    # ATM term structure + mispricing table
+│       ├── helpers.py             # Shared computation helpers
+│       ├── surface_3d.py          # 3D volatility surface (Plotly)
+│       ├── smile_slice.py         # Per-expiry smile with bid-ask bands
+│       ├── residual_heatmap.py    # Strike × expiry mispricing heatmap
+│       ├── arbitrage_diag.py      # Durrleman g(k) + calendar diagnostics
+│       └── term_structure.py      # ATM term structure + mispricing table
 ├── scripts/
-│   ├── generate_synthetic_data.py  # Synthetic data generator
-│   └── plot_iv_smiles.py           # Quick IV smile visualization
+│   ├── generate_synthetic_data.py # Synthetic data generator
+│   └── plot_iv_smiles.py          # Quick IV smile visualization
 ├── tests/
-│   ├── test_data_loader.py      # Phase 1 unit tests
-│   ├── test_iv_engine.py        # Phase 2 unit tests (48 tests)
-│   ├── test_svi_fitter.py       # Phase 3 unit tests
-│   ├── test_arbitrage.py        # Phase 4 unit tests
-│   └── test_integration.py      # End-to-end pipeline tests (28 tests)
-├── pyproject.toml
+│   ├── conftest.py                # Shared fixtures + synthetic data helpers
+│   ├── test_data_loader.py        # Phase 1 unit tests
+│   ├── test_iv_engine.py          # Phase 2 unit tests (48 tests)
+│   ├── test_svi_fitter.py         # Phase 3 unit tests
+│   ├── test_arbitrage.py          # Phase 4 unit tests
+│   └── test_integration.py        # End-to-end pipeline tests (28 tests)
+├── LICENSE                        # MIT License
+├── pyproject.toml                 # Project metadata, dependencies, tool config
 ├── requirements.txt
 └── README.md
 ```

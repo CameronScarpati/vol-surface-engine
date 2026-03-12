@@ -38,7 +38,9 @@ dev = [
 ]
 
 [project.urls]
+Homepage = "https://github.com/CameronScarpati/vol-surface-engine"
 Repository = "https://github.com/CameronScarpati/vol-surface-engine"
+Issues = "https://github.com/CameronScarpati/vol-surface-engine/issues"
 
 [tool.setuptools.packages.find]
 include = ["src*", "dashboard*"]
