@@ -81,8 +81,13 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.markdown(
     "**Author:** Cameron Scarpati\n\n"
-    "Vanderbilt CS + Applied Math\n\n"
-    "Morgan Stanley Equity Algorithms"
+    "Vanderbilt CS + Applied Math"
+)
+st.sidebar.markdown(
+    "Also see [LOB Regime Scanner]"
+    "(https://github.com/CameronScarpati/lob-regime-scanner) — "
+    "a Hidden Markov Model that classifies live order-book "
+    "microstructure into Quiet, Trending, and Toxic regimes."
 )
 st.sidebar.markdown(
     "[Gatheral (2004)](https://doi.org/10.1002/wilm.10201) · "

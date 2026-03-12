@@ -9,7 +9,7 @@ An implied volatility surface construction tool that pulls live SPY options data
 
 Built as a companion to [LOB Regime Scanner](https://github.com/CameronScarpati) — bridging microstructure analysis into derivatives pricing.
 
-**Author:** Cameron Scarpati — Vanderbilt CS + Applied Math, Morgan Stanley Equity Algorithms
+**Author:** Cameron Scarpati — Vanderbilt CS + Applied Math
 
 ---
 
