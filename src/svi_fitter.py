@@ -50,7 +50,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 # SVI parameter container
 # ---------------------------------------------------------------------------
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SVIParams:
     """Fitted SVI parameters for a single expiry slice."""
 
