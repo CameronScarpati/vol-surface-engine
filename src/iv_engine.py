@@ -16,6 +16,13 @@ from scipy.stats import norm
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "bs_price",
+    "bs_vega",
+    "compute_all_iv",
+    "implied_volatility",
+]
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------

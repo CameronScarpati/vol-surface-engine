@@ -18,8 +18,7 @@ env/
 *.swp
 *.swo
 
-# Data files (cached, regenerated)
-data/*.parquet
+# Data files (large or user-generated)
 data/*.csv
 
 # OS

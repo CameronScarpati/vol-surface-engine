@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import timezone
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +17,15 @@ import pandas as pd
 import yfinance as yf
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "OptionsData",
+    "clean_chain",
+    "fetch_risk_free_rate",
+    "load_options",
+    "load_parquet",
+    "save_parquet",
+]
 
 DEFAULT_RISK_FREE_RATE = 0.0435  # ~4.35 % 3-month T-bill (updated manually)
 PARQUET_PATH = Path(__file__).resolve().parent.parent / "data" / "spy_options.parquet"
@@ -50,9 +59,9 @@ def fetch_risk_free_rate() -> float:
     Falls back to ``DEFAULT_RISK_FREE_RATE`` on failure.
     """
     try:
-        from fredapi import Fred  # noqa: WPS433 (conditional import)
-
         import os
+
+        from fredapi import Fred
 
         api_key = os.environ.get("FRED_API_KEY")
         if api_key is None:

@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.arbitrage import (
     ArbitrageDiagnostics,
@@ -13,7 +12,6 @@ from src.arbitrage import (
     generate_diagnostics,
 )
 from src.svi_fitter import SVIParams, svi_total_variance
-
 
 # ---------------------------------------------------------------------------
 # Known arbitrage-free parameters

@@ -27,19 +27,17 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from src.arbitrage import ArbitrageDiagnostics, generate_diagnostics
-from src.iv_engine import bs_price, compute_all_iv
-from src.svi_fitter import SVIParams, fit_all_slices, svi_total_variance
-from src.surface import VolSurface, build_surface
-
-from dashboard.components.surface_3d import render_surface_3d
-from dashboard.components.smile_slice import render_smile_slices
-from dashboard.components.residual_heatmap import render_residual_heatmap
-from dashboard.components.arbitrage_diag import render_arbitrage_diagnostics
-from dashboard.components.term_structure import (
+from dashboard.components import (  # noqa: E402
+    render_arbitrage_diagnostics,
     render_mispricing_table,
+    render_residual_heatmap,
+    render_smile_slices,
+    render_surface_3d,
     render_term_structure,
 )
+from src.iv_engine import bs_price  # noqa: E402
+from src.surface import VolSurface, build_surface  # noqa: E402
+from src.svi_fitter import SVIParams, svi_total_variance  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -121,7 +119,7 @@ def _generate_placeholder() -> VolSurface:
     rng = np.random.default_rng(42)
     rows: list[dict] = []
 
-    for T, svi in zip(T_values, svi_configs):
+    for T, svi in zip(T_values, svi_configs, strict=True):
         F = spot * np.exp((r - q) * T)
         # Generate strikes around ATM
         moneyness_range = min(0.15 + T * 0.3, 0.45)
@@ -134,7 +132,7 @@ def _generate_placeholder() -> VolSurface:
         )
         iv_true = np.sqrt(np.maximum(w_true, 1e-8) / T)
 
-        for K, iv in zip(strikes, iv_true):
+        for K, iv in zip(strikes, iv_true, strict=True):
             # Add realistic noise (wider for short expiry)
             noise = rng.normal(0, 0.002 + 0.001 / np.sqrt(T))
             iv_noisy = max(iv + noise, 0.03)

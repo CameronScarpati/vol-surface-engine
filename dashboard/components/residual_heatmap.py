@@ -1,5 +1,5 @@
 """
-Residual heatmap: (Market IV − Fitted IV) across the strike × expiry grid.
+Residual heatmap: (Market IV - Fitted IV) across the strike x expiry grid.
 
 Highlights statistically significant mispricings using a diverging
 blue-white-red colour scale.
@@ -7,12 +7,11 @@ blue-white-red colour scale.
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from src.svi_fitter import svi_total_variance
+from dashboard.components.helpers import compute_chain_fitted_iv
 
 
 def render_residual_heatmap(
@@ -23,43 +22,16 @@ def render_residual_heatmap(
     div_yield: float,
 ) -> None:
     """Render the residual heatmap in Streamlit."""
-    st.subheader("Residual Heatmap (Market IV − Fitted IV)")
+    st.subheader("Residual Heatmap (Market IV - Fitted IV)")
 
-    df = chain.dropna(subset=["iv"]).copy()
-    if df.empty or slice_params.empty:
-        st.warning("Insufficient data for residual heatmap.")
-        return
-
-    fitted_ivs = []
-    for _, row in df.iterrows():
-        T = row["T"]
-        S = row["S"]
-        r = row["r"]
-        q = row["q"]
-        K = row["strike"]
-        F = S * np.exp((r - q) * T)
-        k = np.log(K / F)
-
-        sp_mask = np.isclose(slice_params["T"].values, T, atol=1e-6)
-        if sp_mask.any():
-            sp = slice_params[sp_mask].iloc[0]
-            w = svi_total_variance(
-                k, sp["a"], sp["b"], sp["rho"], sp["m"], sp["sigma"]
-            )
-            w_val = float(np.squeeze(w))
-            fitted_ivs.append(float(np.sqrt(max(w_val, 0.0) / T)) if T > 0 else np.nan)
-        else:
-            fitted_ivs.append(np.nan)
-
-    df["fitted_iv"] = fitted_ivs
-    df["residual"] = df["iv"] - df["fitted_iv"]
+    df = compute_chain_fitted_iv(chain, slice_params)
     df = df.dropna(subset=["residual"])
 
     if df.empty:
         st.warning("No residuals to display.")
         return
 
-    # Compute significance threshold (2σ of residuals)
+    # Compute significance threshold (2 sigma of residuals)
     sigma_resid = df["residual"].std()
 
     # Create pivot for heatmap
@@ -107,7 +79,7 @@ def render_residual_heatmap(
     # Significance summary
     n_sig = (df["residual"].abs() > 2 * sigma_resid).sum()
     st.caption(
-        f"Residual σ = {sigma_resid:.4f} | "
-        f"**{n_sig}** / {len(df)} points exceed 2σ threshold "
+        f"Residual sigma = {sigma_resid:.4f} | "
+        f"**{n_sig}** / {len(df)} points exceed 2 sigma threshold "
         f"(|residual| > {2 * sigma_resid:.4f})"
     )

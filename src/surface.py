@@ -19,13 +19,17 @@ import pandas as pd
 from src.arbitrage import ArbitrageDiagnostics, generate_diagnostics
 from src.iv_engine import compute_all_iv
 from src.svi_fitter import (
-    SVIParams,
     fit_all_slices,
     interpolate_surface,
     svi_total_variance,
 )
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "VolSurface",
+    "build_surface",
+]
 
 
 @dataclass

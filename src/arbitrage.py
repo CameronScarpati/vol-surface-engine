@@ -32,18 +32,25 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
 
 from src.svi_fitter import (
     SVIParams,
-    _PARAM_BOUNDS,
+    fit_svi_slice,
     svi_first_derivative,
     svi_second_derivative,
     svi_total_variance,
-    fit_svi_slice,
 )
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "ArbitrageDiagnostics",
+    "check_butterfly_arbitrage",
+    "check_calendar_arbitrage",
+    "durrleman_condition",
+    "fit_svi_arbitrage_free",
+    "generate_diagnostics",
+]
 
 # Default grid for checking arbitrage conditions
 _DEFAULT_K_MIN = -0.5

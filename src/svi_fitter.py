@@ -28,13 +28,23 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Sequence
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "PARAM_BOUNDS",
+    "SVIParams",
+    "fit_all_slices",
+    "fit_svi_slice",
+    "interpolate_surface",
+    "svi_first_derivative",
+    "svi_second_derivative",
+    "svi_total_variance",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +139,7 @@ def svi_second_derivative(
 # ---------------------------------------------------------------------------
 # Parameter bounds (Gatheral & Jacquier 2014)
 # ---------------------------------------------------------------------------
-_PARAM_BOUNDS = [
+PARAM_BOUNDS = [
     (-0.5, 0.5),    # a – variance level
     (1e-4, 2.0),    # b – slope (positive)
     (-0.999, 0.999), # rho – skew
@@ -228,15 +238,15 @@ def fit_svi_slice(
         # Clip to bounds
         x0_clipped = np.clip(
             x0,
-            [b[0] for b in _PARAM_BOUNDS],
-            [b[1] for b in _PARAM_BOUNDS],
+            [b[0] for b in PARAM_BOUNDS],
+            [b[1] for b in PARAM_BOUNDS],
         )
         try:
             result = minimize(
                 objective,
                 x0_clipped,
                 method="L-BFGS-B",
-                bounds=_PARAM_BOUNDS,
+                bounds=PARAM_BOUNDS,
                 options={"maxiter": 500, "ftol": 1e-15, "gtol": 1e-12},
             )
             if result.fun < best_cost:
@@ -379,10 +389,10 @@ def interpolate_surface(
     k = np.atleast_1d(np.asarray(k, dtype=np.float64))
 
     T_values = slice_params["T"].values
-    if T <= T_values.min():
+    if T_values.min() >= T:
         row = slice_params.iloc[np.argmin(T_values)]
         return svi_total_variance(k, row["a"], row["b"], row["rho"], row["m"], row["sigma"])
-    if T >= T_values.max():
+    if T_values.max() <= T:
         row = slice_params.iloc[np.argmax(T_values)]
         return svi_total_variance(k, row["a"], row["b"], row["rho"], row["m"], row["sigma"])
 

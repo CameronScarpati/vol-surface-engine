@@ -11,9 +11,10 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import streamlit as st
+from plotly.subplots import make_subplots
 
+from dashboard.components.helpers import compute_chain_fitted_iv
 from src.svi_fitter import svi_total_variance
 
 
@@ -94,7 +95,7 @@ def render_term_structure(
     )
 
     positions = [(1, 1), (1, 2), (2, 1), (2, 2), (3, 1)]
-    for (col_name, label), (r, c) in zip(param_names, positions):
+    for (col_name, label), (r, c) in zip(param_names, positions, strict=True):
         fig2.add_trace(
             go.Scatter(
                 x=dte,
@@ -124,30 +125,10 @@ def render_mispricing_table(
     """Top N mispricings ranked by |residual|."""
     st.subheader(f"Top {top_n} Mispricings")
 
-    df = chain.dropna(subset=["iv"]).copy()
-    if df.empty or slice_params.empty:
+    df = compute_chain_fitted_iv(chain, slice_params)
+    if df.empty:
         st.warning("No data for mispricing analysis.")
         return
-
-    fitted_ivs = []
-    for _, row in df.iterrows():
-        T = row["T"]
-        F = row["S"] * np.exp((row["r"] - row["q"]) * T)
-        k = np.log(row["strike"] / F)
-
-        sp_mask = np.isclose(slice_params["T"].values, T, atol=1e-6)
-        if sp_mask.any():
-            sp = slice_params[sp_mask].iloc[0]
-            w = svi_total_variance(
-                k, sp["a"], sp["b"], sp["rho"], sp["m"], sp["sigma"]
-            )
-            w_val = float(np.squeeze(w))
-            fitted_ivs.append(float(np.sqrt(max(w_val, 0.0) / T)) if T > 0 else np.nan)
-        else:
-            fitted_ivs.append(np.nan)
-
-    df["fitted_iv"] = fitted_ivs
-    df["residual"] = df["iv"] - df["fitted_iv"]
     df["abs_residual"] = df["residual"].abs()
     df["direction"] = np.where(df["residual"] > 0, "CHEAP (under-fitted)", "RICH (over-fitted)")
     df["DTE"] = (df["T"] * 365.25).round().astype(int)
