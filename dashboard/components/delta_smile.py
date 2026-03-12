@@ -40,11 +40,6 @@ def render_delta_smile(
 ) -> None:
     """Render the delta-space volatility smile in Streamlit."""
     st.subheader("Volatility Smile in Delta-Space")
-    st.caption(
-        "IV plotted against Black-Scholes delta — the standard quoting "
-        "convention on derivatives desks. Normalises across expiries so "
-        "skew and convexity are directly comparable."
-    )
 
     if slice_params.empty:
         st.warning("No fitted slices available.")

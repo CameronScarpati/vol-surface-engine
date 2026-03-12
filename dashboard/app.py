@@ -294,6 +294,13 @@ def main() -> None:
     with tab_smiles:
         left2, right2 = st.columns([3, 2])
         with left2:
+            st.caption(
+                "**Delta-Space Smile** — IV plotted against Black-Scholes "
+                "delta, the standard quoting convention on derivatives desks. "
+                "Normalises across expiries so skew and convexity are directly "
+                "comparable. The 25Δ risk-reversal measures skew direction "
+                "while the 25Δ butterfly captures smile curvature."
+            )
             render_delta_smile(chain, sp, surface.spot, surface.risk_free, surface.div_yield)
         with right2:
             st.caption(
@@ -309,10 +316,24 @@ def main() -> None:
 
     # ── Tab 3: Greeks ────────────────────────────────────────────────────
     with tab_greeks:
+        st.caption(
+            "**Greeks Surface** — Black-Scholes sensitivities (Δ, Γ, ν, Θ) "
+            "computed from the fitted SVI surface across the full (strike, T) "
+            "grid. These are the quantities that drive hedging and risk "
+            "management — the primary reason for constructing a volatility "
+            "surface in production."
+        )
         render_greeks(chain, sp, surface.spot, surface.risk_free, surface.div_yield)
 
     # ── Tab 4: Local Volatility ──────────────────────────────────────────
     with tab_localvol:
+        st.caption(
+            "**Local Volatility (Dupire)** — The unique diffusion coefficient "
+            "σ_loc(K, T) consistent with the fitted implied volatility surface, "
+            "computed via Dupire's formula. Local vol reveals the instantaneous "
+            "volatility structure that the market prices imply, bridging the "
+            "quoting convention (implied vol) to the risk-neutral dynamics."
+        )
         render_local_vol(chain, sp, surface.spot, surface.risk_free, surface.div_yield)
 
     # ── Tab 5: Arbitrage Diagnostics ─────────────────────────────────────

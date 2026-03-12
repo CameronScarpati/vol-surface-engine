@@ -130,12 +130,6 @@ def render_local_vol(
 ) -> None:
     """Render the local volatility surface in Streamlit."""
     st.subheader("Local Volatility Surface (Dupire)")
-    st.caption(
-        "The unique diffusion coefficient σ_loc(K, T) consistent with the "
-        "fitted implied volatility surface, computed via Dupire's formula. "
-        "Local vol reveals the instantaneous volatility structure that the "
-        "market prices imply."
-    )
 
     if slice_params.empty:
         st.warning("No fitted slices available.")

@@ -55,10 +55,6 @@ def render_greeks(
 ) -> None:
     """Render the Greeks analysis panel in Streamlit."""
     st.subheader("Greeks Surface")
-    st.caption(
-        "Black-Scholes Greeks computed from the fitted SVI surface — "
-        "the sensitivity profile that drives hedging and risk management."
-    )
 
     if slice_params.empty:
         st.warning("No fitted slices available.")
