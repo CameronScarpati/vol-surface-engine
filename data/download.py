@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.data_loader import load_options, PARQUET_PATH
+from src.data_loader import PARQUET_PATH, load_options
 from src.surface import build_surface
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
@@ -62,7 +62,7 @@ def main() -> None:
     print(f"  Saved to:       {PARQUET_PATH}")
 
     # Run full pipeline
-    print(f"\n  Building volatility surface ...")
+    print("\n  Building volatility surface ...")
     surface = build_surface(opts.chains, opts.spot, opts.risk_free, opts.div_yield)
 
     n_valid = surface.chain["iv"].notna().sum()
@@ -73,7 +73,7 @@ def main() -> None:
     print(f"\n  {'Expiry':<12} {'DTE':>5} {'RMSE':>10} {'R²':>8} {'Points':>7}")
     print(f"  {'-'*44}")
     for _, row in surface.slice_params.iterrows():
-        dte = int(round(row["T"] * 365.25))
+        dte = round(row["T"] * 365.25)
         print(f"  {'':12} {dte:>5}d {row['rmse']:>10.6f} {row['r_squared']:>8.4f} {int(row['n_points']):>7}")
 
     # Arbitrage status
