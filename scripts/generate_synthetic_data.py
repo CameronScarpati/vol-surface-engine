@@ -12,9 +12,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from datetime import timezone
+
 import numpy as np
 import pandas as pd
-from datetime import timezone
 
 from src.iv_engine import bs_price
 
@@ -61,7 +62,7 @@ def main() -> None:
     strikes = np.linspace(SPOT * 0.80, SPOT * 1.20, n_strikes)
 
     rows = []
-    for exp, dte in zip(expiries, dte_days):
+    for exp, dte in zip(expiries, dte_days, strict=True):
         T = dte / 365.25
         for K in strikes:
             for otype in ["call", "put"]:

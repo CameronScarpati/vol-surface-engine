@@ -1,7 +1,7 @@
 """
 Integration tests covering the full pipeline:
 
-    data (synthetic) → IV extraction → SVI calibration → arbitrage diagnostics → surface queries
+    data (synthetic) -> IV extraction -> SVI calibration -> arbitrage diagnostics -> surface queries
 
 These tests verify that all phases (built by separate sessions) work together
 correctly as an end-to-end system.
@@ -10,92 +10,33 @@ correctly as an end-to-end system.
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 import pytest
-from datetime import timezone
 
+from src.arbitrage import (
+    check_butterfly_arbitrage,
+    durrleman_condition,
+    fit_svi_arbitrage_free,
+    generate_diagnostics,
+)
 from src.iv_engine import bs_price, bs_vega, compute_all_iv, implied_volatility
+from src.surface import VolSurface, build_surface
 from src.svi_fitter import (
     SVIParams,
     fit_all_slices,
-    fit_svi_slice,
     interpolate_surface,
     svi_first_derivative,
     svi_second_derivative,
     svi_total_variance,
 )
-from src.arbitrage import (
-    check_butterfly_arbitrage,
-    check_calendar_arbitrage,
-    durrleman_condition,
-    fit_svi_arbitrage_free,
-    generate_diagnostics,
+from tests.conftest import (
+    DIV_YIELD,
+    RISK_FREE,
+    SPOT,
+    make_synthetic_chain,
+    synthetic_iv,
 )
-from src.surface import VolSurface, build_surface
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-SPOT = 560.0
-R = 0.0435
-Q = 0.013
-
-
-def _synthetic_iv(K: float, T: float, S: float = SPOT) -> float:
-    """Realistic SPY-like IV model (same as scripts/generate_synthetic_data.py)."""
-    k = np.log(K / S)
-    atm = 0.16 + 0.03 * np.exp(-2.0 * T)
-    skew_coeff = -0.12 * (1.0 + 0.5 / (T + 0.05))
-    skew = skew_coeff * k
-    smile = 0.15 * k**2
-    return float(np.clip(atm + skew + smile, 0.05, 1.5))
-
-
-def _make_synthetic_chain(
-    dte_days: list[int] | None = None,
-    n_strikes: int = 25,
-    seed: int = 42,
-) -> pd.DataFrame:
-    """Generate a synthetic options chain with known IV characteristics."""
-    rng = np.random.default_rng(seed)
-    now = pd.Timestamp.now(tz=timezone.utc).normalize()
-
-    if dte_days is None:
-        dte_days = [14, 30, 60, 90, 180, 365]
-
-    expiries = [now + pd.Timedelta(days=d) for d in dte_days]
-    strikes = np.linspace(SPOT * 0.85, SPOT * 1.15, n_strikes)
-
-    rows = []
-    for exp, dte in zip(expiries, dte_days):
-        T = dte / 365.25
-        for K in strikes:
-            for otype in ["call", "put"]:
-                iv = _synthetic_iv(K, T)
-                price = bs_price(SPOT, K, T, R, Q, iv, otype)
-                noise = rng.normal(0, 0.002 * price + 0.01)
-                mid = max(0.05, price + noise)
-                spread_pct = rng.uniform(0.03, 0.15)
-                spread = mid * spread_pct
-
-                rows.append({
-                    "expiry": exp,
-                    "strike": round(K, 2),
-                    "option_type": otype,
-                    "mid_price": round(mid, 4),
-                    "bid": round(mid - spread / 2, 4),
-                    "ask": round(mid + spread / 2, 4),
-                    "volume": int(rng.exponential(500)) + 1,
-                    "open_interest": int(rng.exponential(3000)) + 1,
-                    "S": SPOT,
-                    "r": R,
-                    "q": Q,
-                    "T": round(T, 6),
-                    "low_confidence": spread_pct > 0.10,
-                })
-
-    return pd.DataFrame(rows)
+pytestmark = pytest.mark.slow
 
 
 # ---------------------------------------------------------------------------
@@ -106,17 +47,15 @@ class TestIVExtractionIntegration:
 
     def test_iv_recovery_from_synthetic_chain(self):
         """IVs extracted from BS prices should match the input IVs closely."""
-        chain = _make_synthetic_chain(dte_days=[90], n_strikes=15, seed=123)
+        chain = make_synthetic_chain(dte_days=[90], n_strikes=15, seed=123)
         result = compute_all_iv(chain)
 
         assert "iv" in result.columns
         valid = result.dropna(subset=["iv"])
         assert len(valid) > 0
 
-        # Recovered IVs should be close to the synthetic model
         for _, row in valid.iterrows():
-            expected_iv = _synthetic_iv(row["strike"], row["T"])
-            # Tolerance accounts for price noise and extraction error
+            expected_iv = synthetic_iv(row["strike"], row["T"])
             assert abs(row["iv"] - expected_iv) < 0.03, (
                 f"K={row['strike']:.1f} T={row['T']:.4f}: "
                 f"extracted={row['iv']:.4f} vs expected={expected_iv:.4f}"
@@ -124,21 +63,21 @@ class TestIVExtractionIntegration:
 
     def test_high_extraction_rate(self):
         """Vast majority of synthetic options should yield a valid IV."""
-        chain = _make_synthetic_chain()
+        chain = make_synthetic_chain()
         result = compute_all_iv(chain)
         success_rate = result["iv"].notna().mean()
         assert success_rate > 0.90, f"IV extraction rate too low: {success_rate:.2%}"
 
 
 # ---------------------------------------------------------------------------
-# Test: IV → SVI pipeline
+# Test: IV -> SVI pipeline
 # ---------------------------------------------------------------------------
 class TestIVToSVIPipeline:
     """Verify that SVI fitting works on IV-enriched chain data."""
 
     def test_fit_all_slices_from_iv_chain(self):
         """fit_all_slices should produce params for every expiry in the chain."""
-        chain = _make_synthetic_chain()
+        chain = make_synthetic_chain()
         chain_iv = compute_all_iv(chain)
         slice_params = fit_all_slices(chain_iv)
 
@@ -146,14 +85,14 @@ class TestIVToSVIPipeline:
         assert len(slice_params) == n_expiries
 
     def test_svi_fit_quality_on_synthetic(self):
-        """SVI fits should have R² > 0.95 and RMSE < 0.01 on clean synthetic data."""
-        chain = _make_synthetic_chain()
+        """SVI fits should have R^2 > 0.95 and RMSE < 0.01 on clean synthetic data."""
+        chain = make_synthetic_chain()
         chain_iv = compute_all_iv(chain)
         slice_params = fit_all_slices(chain_iv)
 
         for _, row in slice_params.iterrows():
             assert row["r_squared"] > 0.95, (
-                f"T={row['T']:.4f}: R²={row['r_squared']:.4f}"
+                f"T={row['T']:.4f}: R^2={row['r_squared']:.4f}"
             )
             assert row["rmse"] < 0.01, (
                 f"T={row['T']:.4f}: RMSE={row['rmse']:.6f}"
@@ -161,7 +100,7 @@ class TestIVToSVIPipeline:
 
     def test_svi_params_within_bounds(self):
         """Fitted SVI parameters should be within expected bounds."""
-        chain = _make_synthetic_chain()
+        chain = make_synthetic_chain()
         chain_iv = compute_all_iv(chain)
         slice_params = fit_all_slices(chain_iv)
 
@@ -174,26 +113,24 @@ class TestIVToSVIPipeline:
 
 
 # ---------------------------------------------------------------------------
-# Test: SVI → Arbitrage diagnostics pipeline
+# Test: SVI -> Arbitrage diagnostics pipeline
 # ---------------------------------------------------------------------------
 class TestSVIToArbitragePipeline:
     """Verify that arbitrage diagnostics work on fitted SVI parameters."""
 
     def test_diagnostics_from_fitted_slices(self):
         """generate_diagnostics should run without error on pipeline output."""
-        chain = _make_synthetic_chain()
+        chain = make_synthetic_chain()
         chain_iv = compute_all_iv(chain)
         slice_params = fit_all_slices(chain_iv)
         diag = generate_diagnostics(slice_params)
 
-        # Should have a butterfly check for every slice
         assert len(diag.butterfly_free) == len(slice_params)
-        # calendar_free should be a bool
         assert isinstance(diag.calendar_free, bool)
 
     def test_arbitrage_free_fitting_improves_surface(self):
         """fit_svi_arbitrage_free should produce Durrleman-compliant slices."""
-        chain = _make_synthetic_chain(dte_days=[90], n_strikes=30, seed=77)
+        chain = make_synthetic_chain(dte_days=[90], n_strikes=30, seed=77)
         chain_iv = compute_all_iv(chain)
 
         df = chain_iv.dropna(subset=["iv"]).copy()
@@ -201,7 +138,6 @@ class TestSVIToArbitragePipeline:
         df["k"] = np.log(df["strike"] / df["F"])
         df["w"] = df["iv"] ** 2 * df["T"]
 
-        # Average calls and puts
         grouped = df.groupby("k").agg(w=("w", "mean")).reset_index().sort_values("k")
         k_arr = grouped["k"].values
         w_arr = grouped["w"].values
@@ -219,8 +155,8 @@ class TestBuildSurfaceIntegration:
 
     @pytest.fixture
     def surface(self) -> VolSurface:
-        chain = _make_synthetic_chain()
-        return build_surface(chain, SPOT, R, Q)
+        chain = make_synthetic_chain()
+        return build_surface(chain, SPOT, RISK_FREE, DIV_YIELD)
 
     def test_returns_vol_surface(self, surface):
         assert isinstance(surface, VolSurface)
@@ -249,9 +185,8 @@ class TestBuildSurfaceIntegration:
         T = 0.25
         iv_low_strike = surface.iv(SPOT * 0.90, T)
         iv_atm = surface.iv(SPOT, T)
-        # Put wing should have higher IV due to skew
         if np.isfinite(iv_low_strike) and np.isfinite(iv_atm):
-            assert iv_low_strike > iv_atm - 0.02  # allow small tolerance
+            assert iv_low_strike > iv_atm - 0.02
 
     def test_fitted_iv_for_chain(self, surface):
         """fitted_iv_for_chain should add fitted_iv and residual columns."""
@@ -262,7 +197,6 @@ class TestBuildSurfaceIntegration:
         valid = result.dropna(subset=["residual"])
         assert len(valid) > 0
 
-        # Residuals should be small for clean synthetic data
         mean_abs = valid["residual"].abs().mean()
         assert mean_abs < 0.02, f"Mean |residual| = {mean_abs:.4f}"
 
@@ -274,8 +208,8 @@ class TestBuildSurfaceIntegration:
 
     def test_surface_spot_and_rates(self, surface):
         assert surface.spot == SPOT
-        assert surface.risk_free == R
-        assert surface.div_yield == Q
+        assert surface.risk_free == RISK_FREE
+        assert surface.div_yield == DIV_YIELD
 
 
 # ---------------------------------------------------------------------------
@@ -285,14 +219,13 @@ class TestSurfaceInterpolationIntegration:
     """Verify that interpolate_surface works with fit_all_slices output."""
 
     def test_interpolate_between_slices(self):
-        chain = _make_synthetic_chain()
+        chain = make_synthetic_chain()
         chain_iv = compute_all_iv(chain)
         slice_params = fit_all_slices(chain_iv)
 
         T_vals = sorted(slice_params["T"].values)
         assert len(T_vals) >= 2
 
-        # Interpolate at midpoint between first two slices
         T_mid = (T_vals[0] + T_vals[1]) / 2
         k = np.array([0.0])
         w = interpolate_surface(k, T_mid, slice_params)
@@ -302,7 +235,7 @@ class TestSurfaceInterpolationIntegration:
 
     def test_interpolation_monotone_in_T_at_atm(self):
         """Total variance at ATM should generally increase with T."""
-        chain = _make_synthetic_chain()
+        chain = make_synthetic_chain()
         chain_iv = compute_all_iv(chain)
         slice_params = fit_all_slices(chain_iv)
 
@@ -317,7 +250,6 @@ class TestSurfaceInterpolationIntegration:
                 violations += 1
             w_prev = w
 
-        # Allow at most 1 slight violation due to noise
         assert violations <= 1, f"Too many calendar violations at ATM: {violations}"
 
 
@@ -332,25 +264,22 @@ class TestDerivativeConsistency:
         params = SVIParams(a=0.04, b=0.10, rho=-0.2, m=0.0, sigma=0.15)
         k = np.linspace(-0.3, 0.3, 100)
 
-        # Compute g(k) manually using svi_fitter derivatives
         w = svi_total_variance(k, params.a, params.b, params.rho, params.m, params.sigma)
         wp = svi_first_derivative(k, params.b, params.rho, params.m, params.sigma)
         wpp = svi_second_derivative(k, params.b, params.rho, params.m, params.sigma)
 
         w = np.maximum(w, 1e-14)
-        g_manual = (1 - k * wp / (2 * w))**2 - wp**2 / 4 * (1/w + 0.25) + wpp / 2
+        g_manual = (1 - k * wp / (2 * w)) ** 2 - wp**2 / 4 * (1 / w + 0.25) + wpp / 2
 
-        # Compare with arbitrage module's implementation
         g_module = durrleman_condition(k, params)
-
         np.testing.assert_allclose(g_manual, g_module, atol=1e-12)
 
 
 # ---------------------------------------------------------------------------
-# Test: BS → IV → BS roundtrip across the full chain
+# Test: BS -> IV -> BS roundtrip across the full chain
 # ---------------------------------------------------------------------------
 class TestBSIVRoundtripIntegration:
-    """Verify the BS pricing → IV extraction roundtrip at scale."""
+    """Verify the BS pricing -> IV extraction roundtrip at scale."""
 
     def test_roundtrip_across_strikes_and_expiries(self):
         """For synthetic BS prices, IV extraction should recover original IV."""
@@ -389,8 +318,8 @@ class TestDashboardDataFlow:
 
     @pytest.fixture
     def surface(self) -> VolSurface:
-        chain = _make_synthetic_chain()
-        return build_surface(chain, SPOT, R, Q)
+        chain = make_synthetic_chain()
+        return build_surface(chain, SPOT, RISK_FREE, DIV_YIELD)
 
     def test_chain_has_columns_for_3d_surface(self, surface):
         """surface_3d.py expects: strike, T, iv in chain."""

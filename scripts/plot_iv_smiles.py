@@ -20,7 +20,6 @@ from pathlib import Path
 # Ensure `src` is importable when running as a script
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 

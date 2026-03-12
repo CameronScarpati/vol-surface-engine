@@ -61,7 +61,7 @@ def _render_butterfly(
             m=row["m"], sigma=row["sigma"],
         )
         g = durrleman_condition(k_grid, params)
-        dte = int(round(row["T"] * 365.25))
+        dte = round(row["T"] * 365.25)
         label = str(row.get("expiry", f"T={row['T']:.4f}"))
         is_free = diagnostics.butterfly_free.get(label, True)
 

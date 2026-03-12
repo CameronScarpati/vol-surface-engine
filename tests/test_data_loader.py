@@ -1,14 +1,14 @@
 """Tests for the Data Pipeline (Phase 1)."""
 
+from datetime import timezone
+
 import numpy as np
 import pandas as pd
 import pytest
-from datetime import timezone
 
 from src.data_loader import (
     OptionsData,
     clean_chain,
-    estimate_dividend_yield,
     load_parquet,
     save_parquet,
 )
