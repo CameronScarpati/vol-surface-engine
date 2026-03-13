@@ -32,24 +32,21 @@ from src.svi_fitter import (
 )
 
 
-def _select_expiries(sorted_sp: pd.DataFrame, min_T: float = 0.06) -> np.ndarray:
+def _select_expiries(sorted_sp: pd.DataFrame) -> np.ndarray:
     """Select well-spaced expiry slices for stable finite differences.
 
-    Drops expiries shorter than *min_T* (~22 days) and then ensures a
-    minimum gap between consecutive expiries so that dw/dT is not
-    dominated by noise from independently-calibrated SVI parameters.
+    Drops the very shortest expiry (< 10 days) and enforces a minimum gap
+    between consecutive slices so that dw/dT is not dominated by noise
+    from closely-spaced weekly expiries.
     """
     T_all = sorted_sp["T"].values
-    # Drop very short-dated expiries where FD noise dominates.
-    T_all = T_all[T_all >= min_T]
+    # Drop very short-dated expiries (< ~10 days).
+    T_all = T_all[T_all >= 0.027]
     if len(T_all) <= 1:
         return T_all
 
-    # Greedy selection: keep slices that are at least `min_gap` apart.
-    # min_gap scales with the range so we get ~12-20 slices.
-    total_range = T_all[-1] - T_all[0]
-    min_gap = max(total_range / 20.0, 0.03)  # at least ~11 days apart
-
+    # Ensure slices are at least ~7 days apart to avoid FD noise.
+    min_gap = 0.019  # ~7 days
     selected = [T_all[0]]
     for T in T_all[1:]:
         if T - selected[-1] >= min_gap:
@@ -90,8 +87,7 @@ def _compute_local_vol(
         w_prime = svi_first_derivative(k_grid, sp["b"], sp["rho"], sp["m"], sp["sigma"])
         w_double_prime = svi_second_derivative(k_grid, sp["b"], sp["rho"], sp["m"], sp["sigma"])
 
-        # dw/dT via finite difference — use central where possible
-        dw_dT = self = None
+        # dw/dT via finite difference — central where possible
         if i > 0 and i < n_T - 1:
             T_prev, T_next = T_vals[i - 1], T_vals[i + 1]
             sp_p = sorted_sp.iloc[(sorted_sp["T"] - T_prev).abs().argsort()[:1]].iloc[0]
@@ -118,36 +114,35 @@ def _compute_local_vol(
             + w_double_prime / 2.0
         )
 
-        # Reject near-zero denominator points (numerically unreliable).
         with np.errstate(divide="ignore", invalid="ignore"):
             local_var = np.where(
-                denominator > 0.1,
+                denominator > 0.05,
                 dw_dT / denominator,
                 np.nan,
             )
-            # Also reject negative dw/dT (calendar-spread violation residuals).
+            # Reject negative local variance (calendar-spread violations).
             local_var = np.where(local_var > 0, local_var, np.nan)
 
         local_vol[i, :] = np.sqrt(np.maximum(local_var, 0.0))
 
-    # ── Post-processing: cap, smooth, cap again ──────────────────────────
-    # Hard cap before smoothing so spikes don't bleed into neighbours.
-    local_vol = np.where(local_vol > 0.60, np.nan, local_vol)
+    # ── Post-processing: cap, smooth, cap ────────────────────────────────
+    # Hard cap before smoothing so spikes don't bleed.
+    local_vol = np.where(local_vol > 1.0, np.nan, local_vol)
 
     # Normalized-convolution Gaussian smoothing (handles NaN properly).
     valid = np.isfinite(local_vol)
     filled = np.where(valid, local_vol, 0.0)
     weights = valid.astype(float)
-    sigma = (2.0, 3.0)  # (T-direction, k-direction)
+    sigma = (1.5, 2.5)  # (T-direction, k-direction)
     smoothed_num = gaussian_filter(filled, sigma=sigma)
     smoothed_den = gaussian_filter(weights, sigma=sigma)
     with np.errstate(divide="ignore", invalid="ignore"):
         local_vol = np.where(
-            smoothed_den > 0.5, smoothed_num / smoothed_den, np.nan,
+            smoothed_den > 0.3, smoothed_num / smoothed_den, np.nan,
         )
 
-    # Final cap after smoothing.
-    local_vol = np.where(local_vol > 0.60, np.nan, local_vol)
+    # Final soft cap after smoothing.
+    local_vol = np.where(local_vol > 1.0, np.nan, local_vol)
 
     # Convert k_grid to strikes for each T
     F_vals = spot * np.exp((risk_free - div_yield) * T_vals)
@@ -178,11 +173,18 @@ def render_local_vol(
         st.warning("Not enough expiry slices for local vol computation.")
         return
 
-    k_grid = np.linspace(-0.10, 0.10, 60)
+    k_grid = np.linspace(-0.15, 0.15, 80)
 
     strike_grid, T_grid, local_vol = _compute_local_vol(
         k_grid, T_vals, slice_params, spot, risk_free, div_yield,
     )
+
+    # Determine a clean z-axis upper bound from the data.
+    valid_vals = local_vol[np.isfinite(local_vol)]
+    if len(valid_vals) == 0:
+        st.warning("Local vol computation produced no valid values.")
+        return
+    z_max = min(float(np.percentile(valid_vals, 98)) * 1.2, 1.0)
 
     col_3d, col_slice = st.columns([3, 2])
 
@@ -194,6 +196,8 @@ def render_local_vol(
                     y=T_grid * 365.25,
                     z=local_vol,
                     colorscale="Inferno",
+                    cmin=0,
+                    cmax=z_max,
                     colorbar=dict(title="σ_loc", tickformat=".0%"),
                     hovertemplate=(
                         "Strike: %{x:.1f}<br>"
@@ -209,7 +213,7 @@ def render_local_vol(
                 xaxis_title="Strike",
                 yaxis_title="Days to Expiry",
                 zaxis_title="Local Volatility",
-                zaxis=dict(tickformat=".0%", range=[0, 0.60]),
+                zaxis=dict(tickformat=".0%", range=[0, z_max]),
                 camera=dict(eye=dict(x=1.5, y=-1.8, z=0.8)),
             ),
             margin=dict(l=0, r=0, t=30, b=0),
@@ -241,7 +245,7 @@ def render_local_vol(
             xaxis_title="Strike",
             yaxis_title="Local Volatility",
             yaxis_tickformat=".0%",
-            yaxis_range=[0, 0.60],
+            yaxis_range=[0, z_max],
             height=550,
             margin=dict(l=50, r=20, t=30, b=40),
             legend=dict(font=dict(size=10)),
