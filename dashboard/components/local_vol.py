@@ -32,6 +32,31 @@ from src.svi_fitter import (
 )
 
 
+def _select_expiries(sorted_sp: pd.DataFrame, min_T: float = 0.06) -> np.ndarray:
+    """Select well-spaced expiry slices for stable finite differences.
+
+    Drops expiries shorter than *min_T* (~22 days) and then ensures a
+    minimum gap between consecutive expiries so that dw/dT is not
+    dominated by noise from independently-calibrated SVI parameters.
+    """
+    T_all = sorted_sp["T"].values
+    # Drop very short-dated expiries where FD noise dominates.
+    T_all = T_all[T_all >= min_T]
+    if len(T_all) <= 1:
+        return T_all
+
+    # Greedy selection: keep slices that are at least `min_gap` apart.
+    # min_gap scales with the range so we get ~12-20 slices.
+    total_range = T_all[-1] - T_all[0]
+    min_gap = max(total_range / 20.0, 0.03)  # at least ~11 days apart
+
+    selected = [T_all[0]]
+    for T in T_all[1:]:
+        if T - selected[-1] >= min_gap:
+            selected.append(T)
+    return np.array(selected)
+
+
 def _compute_local_vol(
     k_grid: np.ndarray,
     T_vals: np.ndarray,
@@ -49,67 +74,43 @@ def _compute_local_vol(
     strike_grid, T_grid, local_vol_grid : 2D arrays
     """
     sorted_sp = slice_params.sort_values("T")
-    all_T = sorted_sp["T"].values
     n_k = len(k_grid)
-
-    # Need at least 3 slices for reliable central finite differences.
-    # Skip the shortest expiry — forward differences there are extremely
-    # noisy because the T gap is tiny and SVI params change rapidly.
-    if len(all_T) > 3:
-        T_vals = all_T.copy()
-    else:
-        T_vals = all_T.copy()
-
     n_T = len(T_vals)
+
     local_vol = np.full((n_T, n_k), np.nan)
 
     for i, T in enumerate(T_vals):
-        sp_row = sorted_sp[np.isclose(sorted_sp["T"], T, atol=1e-6)]
-        if sp_row.empty:
+        sp_row = sorted_sp.iloc[(sorted_sp["T"] - T).abs().argsort()[:1]]
+        if abs(sp_row.iloc[0]["T"] - T) > 0.01:
             continue
         sp = sp_row.iloc[0]
 
-        # Total variance and derivatives w.r.t. k
+        # Total variance and analytical derivatives w.r.t. k
         w = svi_total_variance(k_grid, sp["a"], sp["b"], sp["rho"], sp["m"], sp["sigma"])
         w_prime = svi_first_derivative(k_grid, sp["b"], sp["rho"], sp["m"], sp["sigma"])
         w_double_prime = svi_second_derivative(k_grid, sp["b"], sp["rho"], sp["m"], sp["sigma"])
 
-        # dw/dT via finite difference between adjacent slices
-        if i == 0 and n_T > 1:
-            # Forward difference
-            sp_next = sorted_sp[np.isclose(sorted_sp["T"], T_vals[1], atol=1e-6)]
-            if not sp_next.empty:
-                sp_n = sp_next.iloc[0]
-                w_next = svi_total_variance(k_grid, sp_n["a"], sp_n["b"], sp_n["rho"], sp_n["m"], sp_n["sigma"])
-                dw_dT = (w_next - w) / (T_vals[1] - T)
-            else:
-                dw_dT = w / T
+        # dw/dT via finite difference — use central where possible
+        dw_dT = self = None
+        if i > 0 and i < n_T - 1:
+            T_prev, T_next = T_vals[i - 1], T_vals[i + 1]
+            sp_p = sorted_sp.iloc[(sorted_sp["T"] - T_prev).abs().argsort()[:1]].iloc[0]
+            sp_n = sorted_sp.iloc[(sorted_sp["T"] - T_next).abs().argsort()[:1]].iloc[0]
+            w_prev = svi_total_variance(k_grid, sp_p["a"], sp_p["b"], sp_p["rho"], sp_p["m"], sp_p["sigma"])
+            w_next = svi_total_variance(k_grid, sp_n["a"], sp_n["b"], sp_n["rho"], sp_n["m"], sp_n["sigma"])
+            dw_dT = (w_next - w_prev) / (T_next - T_prev)
+        elif i == 0 and n_T > 1:
+            sp_n = sorted_sp.iloc[(sorted_sp["T"] - T_vals[1]).abs().argsort()[:1]].iloc[0]
+            w_next = svi_total_variance(k_grid, sp_n["a"], sp_n["b"], sp_n["rho"], sp_n["m"], sp_n["sigma"])
+            dw_dT = (w_next - w) / (T_vals[1] - T)
         elif i == n_T - 1 and n_T > 1:
-            # Backward difference
-            sp_prev = sorted_sp[np.isclose(sorted_sp["T"], T_vals[i - 1], atol=1e-6)]
-            if not sp_prev.empty:
-                sp_p = sp_prev.iloc[0]
-                w_prev = svi_total_variance(k_grid, sp_p["a"], sp_p["b"], sp_p["rho"], sp_p["m"], sp_p["sigma"])
-                dw_dT = (w - w_prev) / (T - T_vals[i - 1])
-            else:
-                dw_dT = w / T
-        elif n_T > 2:
-            # Central difference
-            sp_prev = sorted_sp[np.isclose(sorted_sp["T"], T_vals[i - 1], atol=1e-6)]
-            sp_next = sorted_sp[np.isclose(sorted_sp["T"], T_vals[i + 1], atol=1e-6)]
-            if not sp_prev.empty and not sp_next.empty:
-                sp_p = sp_prev.iloc[0]
-                sp_n = sp_next.iloc[0]
-                w_prev = svi_total_variance(k_grid, sp_p["a"], sp_p["b"], sp_p["rho"], sp_p["m"], sp_p["sigma"])
-                w_next = svi_total_variance(k_grid, sp_n["a"], sp_n["b"], sp_n["rho"], sp_n["m"], sp_n["sigma"])
-                dw_dT = (w_next - w_prev) / (T_vals[i + 1] - T_vals[i - 1])
-            else:
-                dw_dT = w / T
+            sp_p = sorted_sp.iloc[(sorted_sp["T"] - T_vals[i - 1]).abs().argsort()[:1]].iloc[0]
+            w_prev = svi_total_variance(k_grid, sp_p["a"], sp_p["b"], sp_p["rho"], sp_p["m"], sp_p["sigma"])
+            dw_dT = (w - w_prev) / (T - T_vals[i - 1])
         else:
             dw_dT = w / T
 
-        # Dupire denominator is the Durrleman condition g(k):
-        # g(k) = (1 - k*w'/(2w))² - (w')²/4 * (1/w + 1/4) + w''/2
+        # Dupire denominator (Durrleman condition g(k))
         w_safe = np.maximum(w, 1e-10)
         denominator = (
             (1.0 - k_grid * w_prime / (2.0 * w_safe)) ** 2
@@ -117,32 +118,36 @@ def _compute_local_vol(
             + w_double_prime / 2.0
         )
 
-        # Reject points where the denominator is small — these produce
-        # unreliable local vol due to near-zero Durrleman values.
+        # Reject near-zero denominator points (numerically unreliable).
         with np.errstate(divide="ignore", invalid="ignore"):
             local_var = np.where(
-                denominator > 0.05,
+                denominator > 0.1,
                 dw_dT / denominator,
                 np.nan,
             )
+            # Also reject negative dw/dT (calendar-spread violation residuals).
+            local_var = np.where(local_var > 0, local_var, np.nan)
 
-        local_vol_raw = np.sqrt(np.maximum(local_var, 0.0))
-        # Cap at 80% — equity local vol beyond this is numerical noise.
-        local_vol_raw = np.where(local_vol_raw > 0.80, np.nan, local_vol_raw)
-        local_vol[i, :] = local_vol_raw
+        local_vol[i, :] = np.sqrt(np.maximum(local_var, 0.0))
 
-    # Smooth the surface to remove residual jaggedness from finite
-    # differences across unevenly spaced expiry slices.
-    # gaussian_filter treats NaNs as 0, so we use a normalized-convolution
-    # approach: smooth numerator and weight mask separately, then divide.
+    # ── Post-processing: cap, smooth, cap again ──────────────────────────
+    # Hard cap before smoothing so spikes don't bleed into neighbours.
+    local_vol = np.where(local_vol > 0.60, np.nan, local_vol)
+
+    # Normalized-convolution Gaussian smoothing (handles NaN properly).
     valid = np.isfinite(local_vol)
     filled = np.where(valid, local_vol, 0.0)
     weights = valid.astype(float)
-    sigma = (1.0, 2.0)  # light smoothing: (T-direction, k-direction)
+    sigma = (2.0, 3.0)  # (T-direction, k-direction)
     smoothed_num = gaussian_filter(filled, sigma=sigma)
     smoothed_den = gaussian_filter(weights, sigma=sigma)
     with np.errstate(divide="ignore", invalid="ignore"):
-        local_vol = np.where(smoothed_den > 0.3, smoothed_num / smoothed_den, np.nan)
+        local_vol = np.where(
+            smoothed_den > 0.5, smoothed_num / smoothed_den, np.nan,
+        )
+
+    # Final cap after smoothing.
+    local_vol = np.where(local_vol > 0.60, np.nan, local_vol)
 
     # Convert k_grid to strikes for each T
     F_vals = spot * np.exp((risk_free - div_yield) * T_vals)
@@ -167,9 +172,13 @@ def render_local_vol(
         return
 
     sorted_sp = slice_params.sort_values("T")
-    T_vals = sorted_sp["T"].values
+    T_vals = _select_expiries(sorted_sp)
 
-    k_grid = np.linspace(-0.15, 0.15, 80)
+    if len(T_vals) < 2:
+        st.warning("Not enough expiry slices for local vol computation.")
+        return
+
+    k_grid = np.linspace(-0.10, 0.10, 60)
 
     strike_grid, T_grid, local_vol = _compute_local_vol(
         k_grid, T_vals, slice_params, spot, risk_free, div_yield,
@@ -185,7 +194,7 @@ def render_local_vol(
                     y=T_grid * 365.25,
                     z=local_vol,
                     colorscale="Inferno",
-                    colorbar=dict(title="σ_loc", tickformat=".2%"),
+                    colorbar=dict(title="σ_loc", tickformat=".0%"),
                     hovertemplate=(
                         "Strike: %{x:.1f}<br>"
                         "DTE: %{y:.0f}<br>"
@@ -200,7 +209,7 @@ def render_local_vol(
                 xaxis_title="Strike",
                 yaxis_title="Days to Expiry",
                 zaxis_title="Local Volatility",
-                zaxis=dict(tickformat=".0%", range=[0, 0.80]),
+                zaxis=dict(tickformat=".0%", range=[0, 0.60]),
                 camera=dict(eye=dict(x=1.5, y=-1.8, z=0.8)),
             ),
             margin=dict(l=0, r=0, t=30, b=0),
@@ -210,7 +219,6 @@ def render_local_vol(
         st.plotly_chart(fig, use_container_width=True)
 
     with col_slice:
-        # Local vol slices
         fig2 = go.Figure()
         for i, T in enumerate(T_vals):
             dte = round(T * 365.25)
@@ -232,7 +240,8 @@ def render_local_vol(
         fig2.update_layout(
             xaxis_title="Strike",
             yaxis_title="Local Volatility",
-            yaxis_tickformat=".1%",
+            yaxis_tickformat=".0%",
+            yaxis_range=[0, 0.60],
             height=550,
             margin=dict(l=50, r=20, t=30, b=40),
             legend=dict(font=dict(size=10)),
