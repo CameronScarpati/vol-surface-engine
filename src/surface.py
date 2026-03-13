@@ -120,6 +120,16 @@ def build_surface(
     n_valid = chain_iv["iv"].notna().sum()
     logger.info("IV extraction complete: %d / %d valid", n_valid, len(chain_iv))
 
+    # Step 1b: discard implausible IVs that would poison the SVI fit.
+    # Deep OTM options with wide spreads can produce extreme IVs (200%+)
+    # from the Newton-Raphson solver; these are fitting artifacts, not
+    # genuine market signal.
+    implausible = chain_iv["iv"].notna() & (chain_iv["iv"] > 1.5)
+    n_implausible = implausible.sum()
+    if n_implausible > 0:
+        chain_iv.loc[implausible, "iv"] = np.nan
+        logger.info("Discarded %d implausible IVs (> 150%%)", n_implausible)
+
     # Step 2: fit SVI per slice
     slice_params = fit_all_slices(chain_iv)
     logger.info("SVI calibration complete: %d slices", len(slice_params))
