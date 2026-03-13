@@ -108,18 +108,20 @@ def _compute_local_vol(
         )
 
         # Local variance = dw/dT / denominator
+        # Use a meaningful threshold: denominator near zero signals the
+        # Durrleman condition is barely satisfied, making local vol
+        # numerically unreliable at that point.
         with np.errstate(divide="ignore", invalid="ignore"):
             local_var = np.where(
-                denominator > 1e-8,
+                denominator > 0.01,
                 dw_dT / denominator,
                 np.nan,
             )
 
         local_vol_raw = np.sqrt(np.maximum(local_var, 0.0))
-        # Clamp extreme values caused by numerical instability near
-        # boundaries (near-zero denominators, sparse finite differences).
-        # Cap at 300% — anything beyond is not economically meaningful.
-        local_vol_raw = np.where(local_vol_raw > 3.0, np.nan, local_vol_raw)
+        # Cap at 150% — anything beyond is numerical noise for equity
+        # local vol surfaces (typical range: 10-80%).
+        local_vol_raw = np.where(local_vol_raw > 1.5, np.nan, local_vol_raw)
         local_vol[i, :] = local_vol_raw
 
     # Convert k_grid to strikes for each T
@@ -147,7 +149,7 @@ def render_local_vol(
     sorted_sp = slice_params.sort_values("T")
     T_vals = sorted_sp["T"].values
 
-    k_grid = np.linspace(-0.35, 0.35, 100)
+    k_grid = np.linspace(-0.20, 0.20, 100)
 
     strike_grid, T_grid, local_vol = _compute_local_vol(
         k_grid, T_vals, slice_params, spot, risk_free, div_yield,
