@@ -8,9 +8,13 @@ and the underlying risk-neutral dynamics.
 
 Dupire's formula (1994):
 
-    σ_loc²(K, T) = (∂w/∂T) / (1 - k·w'/w + (w'')/(2) - (w')²/4·(1/w + 1/4))
+    σ_loc²(K, T) = (∂w/∂T) / g(k)
 
-where w is total variance and k = ln(K/F).
+where g(k) is the Durrleman condition:
+
+    g(k) = (1 - k·w'/(2w))² - (w')²/4·(1/w + 1/4) + w''/2
+
+and w is total variance and k = ln(K/F).
 """
 
 from __future__ import annotations
@@ -94,13 +98,13 @@ def _compute_local_vol(
         else:
             dw_dT = w / T
 
-        # Dupire denominator: 1 - k*w'/w + w''/2 - (w')²/4 * (1/w + 1/4)
+        # Dupire denominator is the Durrleman condition g(k):
+        # g(k) = (1 - k*w'/(2w))² - (w')²/4 * (1/w + 1/4) + w''/2
         w_safe = np.maximum(w, 1e-10)
         denominator = (
-            1.0
-            - k_grid * w_prime / w_safe
-            + w_double_prime / 2.0
+            (1.0 - k_grid * w_prime / (2.0 * w_safe)) ** 2
             - (w_prime**2) / 4.0 * (1.0 / w_safe + 0.25)
+            + w_double_prime / 2.0
         )
 
         # Local variance = dw/dT / denominator
