@@ -66,7 +66,7 @@ st.set_page_config(
 # Sidebar
 # ═══════════════════════════════════════════════════════════════════════════
 
-st.sidebar.title("Vol Surface Engine")
+st.sidebar.title("Volatility Surface Engine")
 st.sidebar.markdown("**Arbitrage-Free Implied Volatility Surface**")
 
 data_source = st.sidebar.radio(
