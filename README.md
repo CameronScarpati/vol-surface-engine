@@ -5,9 +5,35 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-An implied volatility surface construction tool that pulls live SPY options data, extracts IV via Newton-Raphson, fits the SVI parameterization (Gatheral 2004), enforces no-arbitrage constraints via Durrleman conditions, and renders everything in an interactive Streamlit dashboard.
+A production-grade implied volatility surface construction engine that ingests live equity options data, extracts implied volatility via Newton-Raphson root-finding, calibrates the SVI parameterization (Gatheral 2004), enforces no-arbitrage constraints through Durrleman conditions, and renders the results in an interactive Streamlit dashboard.
 
-**Author:** Cameron Scarpati — Vanderbilt CS + Applied Math
+Built from scratch in Python with a focus on numerical robustness, financial correctness, and clean architecture.
+
+**Author:** Cameron Scarpati | Vanderbilt University — Computer Science & Applied Mathematics
+
+---
+
+## Demo
+
+<p align="center">
+  <img src="docs/screenshot.png" alt="Volatility Surface Engine Dashboard" width="100%"/>
+</p>
+
+<!-- To add your screenshot: save a full-page capture of the dashboard to docs/screenshot.png -->
+
+---
+
+## Highlights
+
+| Area | Detail |
+|------|--------|
+| **IV Extraction** | Newton-Raphson with Brent fallback; Brenner-Subrahmanyam initial guess; convergence to $10^{-10}$ |
+| **SVI Calibration** | 5-parameter raw SVI per expiry slice; multi-start L-BFGS-B with 8 random restarts |
+| **Arbitrage Enforcement** | Durrleman butterfly condition ($g(k) \geq 0$) and calendar-spread monotonicity |
+| **Local Volatility** | Dupire (1994) extraction from the fitted SVI surface |
+| **Greeks** | Full Black-Scholes Greeks ($\Delta$, $\Gamma$, $\nu$, $\Theta$) across the strike-expiry grid |
+| **Dashboard** | Interactive Streamlit app with 3D surface, smile slices, residual heatmap, and arbitrage diagnostics |
+| **Test Coverage** | 130 tests — unit tests per module plus end-to-end integration tests |
 
 ---
 
@@ -35,17 +61,17 @@ An implied volatility surface construction tool that pulls live SPY options data
 └───────────────┴──────────────┴──────────────┴──────────────────────┘
 ```
 
-**Pipeline flow:** `yfinance` → clean chain → Newton-Raphson IV → SVI calibration → Durrleman enforcement → Greeks & local vol → interactive dashboard
+**Pipeline:** `yfinance` → clean chain → Newton-Raphson IV → SVI calibration → Durrleman enforcement → Greeks & local vol → interactive dashboard
 
 ---
 
-## Key Findings
+## Key Results
 
-1. **SVI fits SPY smiles with < 0.5 vol point RMSE** across all expiry slices, while enforcing no-butterfly and no-calendar-spread arbitrage via Durrleman conditions.
-2. **ATM skew steepens 2-3x for near-term expiries** vs. long-dated, consistent with leverage effect and jump risk concentration in the short-term volatility surface.
-3. **Residual analysis identifies 15-20 options per snapshot** with statistically significant mispricings (|residual| > 2σ), concentrated in weekly expiries with wide bid-ask spreads.
-4. **Dupire local volatility** derived from the SVI surface reveals the instantaneous volatility structure implied by the market, with pronounced skew compression at longer maturities.
-5. **Delta-space analysis** (25Δ risk-reversals and butterflies) quantifies skew and convexity in the practitioner-standard convention used on derivatives desks.
+1. **SVI fits SPY smiles with < 0.5 vol point RMSE** across all expiry slices while enforcing no-butterfly and no-calendar-spread arbitrage via Durrleman conditions.
+2. **ATM skew steepens 2-3x for near-term expiries** vs. long-dated, consistent with leverage effect and jump risk concentration in the short-term surface.
+3. **Residual analysis identifies 15-20 options per snapshot** with statistically significant mispricings (|residual| > 2$\sigma$), concentrated in weekly expiries with wide bid-ask spreads.
+4. **Dupire local volatility** reveals the instantaneous volatility structure implied by the market, with pronounced skew compression at longer maturities.
+5. **Delta-space analysis** (25$\Delta$ risk-reversals and butterflies) quantifies skew and convexity in practitioner-standard conventions.
 
 ---
 
@@ -87,11 +113,11 @@ The fitted SVI surface is used to extract Dupire (1994) local volatility — the
 
 $$\sigma_{\text{loc}}^2(K,T) = \frac{\partial w / \partial T}{1 - \frac{k w'}{w} + \frac{w''}{2} - \frac{(w')^2}{4}\left(\frac{1}{w} + \frac{1}{4}\right)}$$
 
-where the numerator uses finite differences across SVI slices and the denominator uses analytical SVI derivatives. This bridges implied volatility (a quoting convention) to the risk-neutral dynamics.
+where the numerator uses finite differences across SVI slices and the denominator uses analytical SVI derivatives.
 
 ### Greeks & Delta-Space Analysis
 
-Black-Scholes Greeks ($\Delta$, $\Gamma$, $\nu$, $\Theta$) are computed from the fitted IV surface across the full (strike, T) grid, providing the sensitivity profile that drives hedging and risk management. The dashboard includes delta-space smile views with standard quoting conventions (25Δ risk-reversals and butterflies) used on derivatives trading desks.
+Black-Scholes Greeks ($\Delta$, $\Gamma$, $\nu$, $\Theta$) are computed from the fitted IV surface across the full (strike, $T$) grid. The dashboard includes delta-space smile views with standard quoting conventions (25$\Delta$ risk-reversals and butterflies) used on derivatives trading desks.
 
 ---
 
@@ -109,15 +135,15 @@ pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 ```
 
-### Fetch Real SPY Data
+### Fetch Live Options Data
 
 ```bash
 python data/download.py
 ```
 
-This pulls live options chains via yfinance, cleans the data, extracts IVs, fits SVI, and caches the result to `data/spy_options.parquet`.
+Pulls live options chains via yfinance, cleans the data, extracts IVs, fits SVI, and caches the result to `data/spy_options.parquet`.
 
-To use a different ticker:
+To use a different underlying:
 
 ```bash
 python data/download.py --symbol AAPL
@@ -130,8 +156,8 @@ streamlit run dashboard/app.py
 ```
 
 The dashboard supports two modes:
-- **Placeholder (synthetic)** — works offline with no data dependencies
-- **Live (yfinance)** — fetches real-time options data (requires network access)
+- **Synthetic** — works offline with no external dependencies
+- **Live** — fetches real-time options data via yfinance
 
 ### Run Tests
 
@@ -154,10 +180,10 @@ vol-surface-engine/
 │   └── spy_options.parquet        # Cached options chain
 ├── src/
 │   ├── __init__.py                # Public API: VolSurface, build_surface, …
-│   ├── data_loader.py             # Phase 1: options chain fetching + cleaning
-│   ├── iv_engine.py               # Phase 2: Black-Scholes + Newton-Raphson IV
-│   ├── svi_fitter.py              # Phase 3: SVI calibration per expiry slice
-│   ├── arbitrage.py               # Phase 4: Durrleman + calendar-spread checks
+│   ├── data_loader.py             # Options chain fetching + cleaning
+│   ├── iv_engine.py               # Black-Scholes + Newton-Raphson IV solver
+│   ├── svi_fitter.py              # SVI calibration per expiry slice
+│   ├── arbitrage.py               # Durrleman + calendar-spread checks
 │   └── surface.py                 # Pipeline orchestrator (VolSurface)
 ├── dashboard/
 │   ├── app.py                     # Streamlit main app
@@ -176,16 +202,32 @@ vol-surface-engine/
 │   └── plot_iv_smiles.py          # Quick IV smile visualization
 ├── tests/
 │   ├── conftest.py                # Shared fixtures + synthetic data helpers
-│   ├── test_data_loader.py        # Phase 1 unit tests
-│   ├── test_iv_engine.py          # Phase 2 unit tests (48 tests)
-│   ├── test_svi_fitter.py         # Phase 3 unit tests
-│   ├── test_arbitrage.py          # Phase 4 unit tests
+│   ├── test_data_loader.py        # Data layer unit tests
+│   ├── test_iv_engine.py          # IV engine unit tests (48 tests)
+│   ├── test_svi_fitter.py         # SVI fitter unit tests
+│   ├── test_arbitrage.py          # Arbitrage enforcement unit tests
 │   └── test_integration.py        # End-to-end pipeline tests (28 tests)
-├── LICENSE                        # MIT License
-├── pyproject.toml                 # Project metadata, dependencies, tool config
+├── docs/
+│   └── screenshot.png             # Dashboard screenshot
+├── LICENSE
+├── pyproject.toml
 ├── requirements.txt
 └── README.md
 ```
+
+---
+
+## Tech Stack
+
+**Core:** Python, NumPy, SciPy (L-BFGS-B optimization, root-finding), Pandas
+
+**Visualization:** Plotly, Streamlit
+
+**Data:** yfinance (options chains), FRED API (risk-free rate)
+
+**Testing:** pytest (130 tests), GitHub Actions CI
+
+**Tooling:** Ruff (linting + formatting), pyproject.toml-based configuration
 
 ---
 
@@ -196,4 +238,4 @@ vol-surface-engine/
 3. Durrleman, V. (2005). *From Implied to Spot Volatilities.* PhD Thesis, Princeton University.
 4. Black, F. & Scholes, M. (1973). *The Pricing of Options and Corporate Liabilities.* Journal of Political Economy.
 5. Brenner, M. & Subrahmanyam, M.G. (1988). *A Simple Formula to Compute the Implied Standard Deviation.* Financial Analysts Journal.
-6. Dupire, B. (1994). *Pricing with a Smile.* Risk Magazine, 7(1), 18–20.
+6. Dupire, B. (1994). *Pricing with a Smile.* Risk Magazine, 7(1), 18-20.
