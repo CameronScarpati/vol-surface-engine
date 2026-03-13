@@ -17,20 +17,20 @@ An end-to-end volatility surface construction engine that fetches live equity op
 Live Market Data (yfinance)
         │
         ▼
-┌─────────────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
+┌─────────────────────┐     ┌───────────────────────┐     ┌──────────────────────┐
 │   DATA PIPELINE     │     │   NUMERICAL ENGINE    │     │   VISUALIZATION      │
 │                     │     │                       │     │                      │
 │ • Fetch options     │────▶│ • Newton-Raphson IV   │────▶│ • 3D IV surface      │
-│   chains + spot     │     │   extraction with     │     │ • Per-expiry smiles   │
+│   chains + spot     │     │   extraction with     │     │ • Per-expiry smiles  │
 │ • FRED risk-free    │     │   Brent fallback      │     │   + bid-ask bands    │
 │   rate (3M T-bill)  │     │ • SVI calibration     │     │ • Greeks surfaces    │
-│ • Dividend yield    │     │   (multi-start        │     │   (Δ, Γ, ν, Θ)      │
+│ • Dividend yield    │     │   (multi-start        │     │   (Δ, Γ, ν, Θ)       │
 │   estimation        │     │   L-BFGS-B, 8 seeds)  │     │ • Dupire local vol   │
-│ • Adaptive filters: │     │ • Durrleman butterfly  │     │ • Residual heatmap   │
+│ • Adaptive filters: │     │ • Durrleman butterfly │     │ • Residual heatmap   │
 │   volume, moneyness,│     │   enforcement         │     │ • Arbitrage          │
 │   bid-ask, MAD      │     │ • Calendar-spread     │     │   diagnostics        │
 │   outlier removal   │     │   monotonicity        │     │ • Delta-space smile  │
-└─────────────────────┘     └──────────────────────┘     │ • Term structure     │
+└─────────────────────┘     └───────────────────────┘     │ • Term structure     │
                                                           └──────────────────────┘
 ```
 
