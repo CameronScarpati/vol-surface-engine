@@ -121,7 +121,7 @@ def _compute_local_vol(
 
         with np.errstate(divide="ignore", invalid="ignore"):
             local_var = np.where(
-                (denominator > 0.02) & (dw_dT > 0),
+                (denominator > 0.01) & (dw_dT > 0),
                 dw_dT / denominator,
                 np.nan,
             )
@@ -131,17 +131,19 @@ def _compute_local_vol(
     # ── Post-processing ──────────────────────────────────────────────────
     # Cap extreme values before smoothing.
     local_vol = np.where(local_vol > 0.80, np.nan, local_vol)
+    local_vol = np.where(local_vol < 0.02, np.nan, local_vol)
 
     # Normalized-convolution Gaussian smoothing (handles NaN properly).
+    # Stronger smoothing along T-axis (index 0) to tame finite-difference noise.
     valid = np.isfinite(local_vol)
     filled = np.where(valid, local_vol, 0.0)
     weights = valid.astype(float)
-    sigma_smooth = (1.0, 1.5)
+    sigma_smooth = (1.5, 2.0)
     smoothed_num = gaussian_filter(filled, sigma=sigma_smooth)
     smoothed_den = gaussian_filter(weights, sigma=sigma_smooth)
     with np.errstate(divide="ignore", invalid="ignore"):
         local_vol = np.where(
-            smoothed_den > 0.3, smoothed_num / smoothed_den, np.nan,
+            smoothed_den > 0.25, smoothed_num / smoothed_den, np.nan,
         )
 
     # Convert k_grid to strikes for each T.
@@ -173,7 +175,8 @@ def render_local_vol(
         st.warning("Not enough well-spaced expiry slices for local vol.")
         return
 
-    k_grid = np.linspace(-0.15, 0.15, 60)
+    # Wider grid for better wing coverage; more points for smoother surface
+    k_grid = np.linspace(-0.20, 0.20, 80)
 
     strike_grid, T_grid, local_vol = _compute_local_vol(
         k_grid, T_vals, slice_params, spot, risk_free, div_yield,

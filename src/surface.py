@@ -115,6 +115,19 @@ def build_surface(
     """
     logger.info("Building volatility surface (%d options)", len(chain))
 
+    # Step 0: Select OTM options only (calls K > F, puts K < F).
+    # This is standard practice on derivatives desks — OTM options have
+    # higher vega and more reliable IV extraction.  At-the-money options
+    # (|k| < 0.005) are kept for both types.
+    F = chain["S"] * np.exp((chain["r"] - chain["q"]) * chain["T"])
+    k = np.log(chain["strike"] / F)
+    is_call = chain["option_type"] == "call"
+    atm_band = k.abs() < 0.005
+    otm_mask = (is_call & (k >= 0)) | (~is_call & (k <= 0)) | atm_band
+    chain = chain[otm_mask].copy()
+    n_otm = otm_mask.sum()
+    logger.info("OTM filter: kept %d / %d options", n_otm, len(otm_mask))
+
     # Step 1: extract implied volatilities
     chain_iv = compute_all_iv(chain)
     n_valid = chain_iv["iv"].notna().sum()
