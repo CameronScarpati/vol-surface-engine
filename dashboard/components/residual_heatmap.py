@@ -36,7 +36,10 @@ def render_residual_heatmap(
 
     # Create pivot for heatmap
     df["DTE"] = (df["T"] * 365.25).round().astype(int)
-    df["strike_bucket"] = (df["strike"] / 2).round() * 2  # 2-point buckets
+    # Adaptive bucket size: ~40 buckets across the strike range.
+    strike_range = df["strike"].max() - df["strike"].min()
+    bucket_size = max(1.0, round(strike_range / 40.0))
+    df["strike_bucket"] = (df["strike"] / bucket_size).round() * bucket_size
 
     pivot = df.pivot_table(
         values="residual",

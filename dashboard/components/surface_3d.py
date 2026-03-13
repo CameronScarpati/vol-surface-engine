@@ -32,12 +32,17 @@ def _build_surface_grid(
     strikes_grid, T_grid : 2-D meshgrid arrays
     market_iv_grid, fitted_iv_grid : 2-D arrays (NaN where no data)
     """
-    strikes = np.linspace(
-        chain["strike"].min(),
-        chain["strike"].max(),
-        n_strike,
-    )
     T_vals = np.sort(slice_params["T"].unique())
+
+    # Limit the strike grid to a sensible moneyness range so SVI
+    # extrapolation doesn't produce extreme wing values.  Use the
+    # median forward price and ±30% log-moneyness.
+    T_mid = float(np.median(T_vals))
+    F_mid = spot * np.exp((risk_free - div_yield) * T_mid)
+    k_max = 0.30
+    strike_lo = max(chain["strike"].min(), F_mid * np.exp(-k_max))
+    strike_hi = min(chain["strike"].max(), F_mid * np.exp(k_max))
+    strikes = np.linspace(strike_lo, strike_hi, n_strike)
 
     strikes_grid = np.tile(strikes, (len(T_vals), 1))
     T_grid = np.tile(T_vals[:, None], (1, n_strike))
@@ -54,7 +59,10 @@ def _build_surface_grid(
         F = spot * np.exp((risk_free - div_yield) * T)
         k = np.log(strikes / F)
         w = svi_total_variance(k, sp["a"], sp["b"], sp["rho"], sp["m"], sp["sigma"])
-        fitted_iv_grid[i, :] = np.sqrt(np.maximum(w, 0.0) / T)
+        iv_vals = np.sqrt(np.maximum(w, 0.0) / T)
+        # Cap extreme wing IVs that are fitting artifacts.
+        iv_vals = np.where(iv_vals > 1.5, np.nan, iv_vals)
+        fitted_iv_grid[i, :] = iv_vals
 
         # Scatter market points onto nearest grid columns
         slice_data = chain[np.isclose(chain["T"], T, atol=1e-6)]

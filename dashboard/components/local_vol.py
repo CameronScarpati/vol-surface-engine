@@ -15,11 +15,6 @@ where g(k) is the Durrleman condition:
     g(k) = (1 - k·w'/(2w))² - (w')²/4·(1/w + 1/4) + w''/2
 
 and w is total variance and k = ln(K/F).
-
-Implementation note: SVI parameters are interpolated smoothly across T
-using cubic splines before computing Dupire derivatives.  This eliminates
-the finite-difference noise that arises from independently-calibrated
-SVI slices at closely-spaced weekly expiries.
 """
 
 from __future__ import annotations
@@ -28,7 +23,6 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from scipy.interpolate import UnivariateSpline
 from scipy.ndimage import gaussian_filter
 
 from src.svi_fitter import (
@@ -38,97 +32,86 @@ from src.svi_fitter import (
 )
 
 
-def _smooth_svi_params(
-    slice_params: pd.DataFrame,
-) -> dict[str, UnivariateSpline]:
-    """Fit smooth cubic splines to each SVI parameter as a function of T.
+def _select_expiries(sorted_sp: pd.DataFrame, min_T: float = 0.04) -> np.ndarray:
+    """Select well-spaced expiry slices for stable finite differences.
 
-    Returns a dict mapping parameter name → fitted spline.
+    Drops expiries shorter than *min_T* (~15 days) and ensures a minimum
+    gap between consecutive expiries so that dw/dT is not dominated by
+    noise from independently-calibrated SVI parameters.
     """
-    sp = slice_params.sort_values("T")
-    T = sp["T"].values
+    T_all = sorted_sp["T"].values
+    T_all = T_all[T_all >= min_T]
+    if len(T_all) <= 1:
+        return T_all
 
-    # Smoothing factor: allow up to 5% residual variance per parameter.
-    # With noisy independent fits this is critical — without smoothing
-    # the spline would interpolate the noise exactly.
-    n = len(T)
-    splines = {}
-    for name in ("a", "b", "rho", "m", "sigma"):
-        vals = sp[name].values
-        # s = n * variance * fraction — use a generous smoothing factor.
-        # k=3 for cubic, s scaled to number of points.
-        variance = np.var(vals) if np.var(vals) > 1e-12 else 1e-6
-        s = n * variance * 0.1  # allow 10% of total variance as residual
-        try:
-            spl = UnivariateSpline(T, vals, k=min(3, n - 1), s=s)
-        except Exception:
-            # Fallback: linear interpolation if spline fitting fails.
-            spl = UnivariateSpline(T, vals, k=1, s=0)
-        splines[name] = spl
-    return splines
+    total_range = T_all[-1] - T_all[0]
+    min_gap = max(total_range / 20.0, 0.025)
+
+    selected = [T_all[0]]
+    for T in T_all[1:]:
+        if T - selected[-1] >= min_gap:
+            selected.append(T)
+    return np.array(selected)
 
 
 def _compute_local_vol(
     k_grid: np.ndarray,
-    T_grid_1d: np.ndarray,
-    splines: dict[str, UnivariateSpline],
+    T_vals: np.ndarray,
+    slice_params: pd.DataFrame,
     spot: float,
     risk_free: float,
     div_yield: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute local volatility surface via Dupire's formula.
 
-    Uses smoothed SVI parameter splines for both w(k,T) evaluation and
-    analytical dw/dT computation (via spline derivatives), eliminating
-    finite-difference noise entirely.
+    Uses finite differences in T and analytical SVI derivatives in k.
 
     Returns
     -------
     strike_grid, T_grid, local_vol_grid : 2D arrays
     """
+    sorted_sp = slice_params.sort_values("T")
     n_k = len(k_grid)
-    n_T = len(T_grid_1d)
+    n_T = len(T_vals)
+
     local_vol = np.full((n_T, n_k), np.nan)
 
-    for i, T in enumerate(T_grid_1d):
-        # Evaluate smoothed SVI parameters at this T.
-        a = float(splines["a"](T))
-        b = float(splines["b"](T))
-        rho = float(splines["rho"](T))
-        m = float(splines["m"](T))
-        sigma = float(splines["sigma"](T))
+    for i, T in enumerate(T_vals):
+        # Find closest slice params for this T.
+        idx = (sorted_sp["T"] - T).abs().argsort().values[:1]
+        sp_row = sorted_sp.iloc[idx]
+        if abs(sp_row.iloc[0]["T"] - T) > 0.02:
+            continue
+        sp = sp_row.iloc[0]
 
-        # Enforce SVI parameter constraints after interpolation.
-        b = max(b, 1e-6)
-        sigma = max(sigma, 1e-6)
-        rho = np.clip(rho, -0.999, 0.999)
+        w = svi_total_variance(k_grid, sp["a"], sp["b"], sp["rho"], sp["m"], sp["sigma"])
+        w_prime = svi_first_derivative(k_grid, sp["b"], sp["rho"], sp["m"], sp["sigma"])
+        w_double_prime = svi_second_derivative(k_grid, sp["b"], sp["rho"], sp["m"], sp["sigma"])
 
-        # Total variance and analytical k-derivatives from SVI.
-        w = svi_total_variance(k_grid, a, b, rho, m, sigma)
-        w_prime = svi_first_derivative(k_grid, b, rho, m, sigma)
-        w_double_prime = svi_second_derivative(k_grid, b, rho, m, sigma)
+        # dw/dT via finite difference between adjacent selected slices.
+        if i > 0 and i < n_T - 1:
+            T_prev, T_next = T_vals[i - 1], T_vals[i + 1]
+            idx_p = (sorted_sp["T"] - T_prev).abs().argsort().values[:1]
+            idx_n = (sorted_sp["T"] - T_next).abs().argsort().values[:1]
+            sp_p = sorted_sp.iloc[idx_p[0]]
+            sp_n = sorted_sp.iloc[idx_n[0]]
+            w_prev = svi_total_variance(k_grid, sp_p["a"], sp_p["b"], sp_p["rho"], sp_p["m"], sp_p["sigma"])
+            w_next = svi_total_variance(k_grid, sp_n["a"], sp_n["b"], sp_n["rho"], sp_n["m"], sp_n["sigma"])
+            dw_dT = (w_next - w_prev) / (T_next - T_prev)
+        elif i == 0 and n_T > 1:
+            idx_n = (sorted_sp["T"] - T_vals[1]).abs().argsort().values[:1]
+            sp_n = sorted_sp.iloc[idx_n[0]]
+            w_next = svi_total_variance(k_grid, sp_n["a"], sp_n["b"], sp_n["rho"], sp_n["m"], sp_n["sigma"])
+            dw_dT = (w_next - w) / (T_vals[1] - T)
+        elif i == n_T - 1 and n_T > 1:
+            idx_p = (sorted_sp["T"] - T_vals[i - 1]).abs().argsort().values[:1]
+            sp_p = sorted_sp.iloc[idx_p[0]]
+            w_prev = svi_total_variance(k_grid, sp_p["a"], sp_p["b"], sp_p["rho"], sp_p["m"], sp_p["sigma"])
+            dw_dT = (w - w_prev) / (T - T_vals[i - 1])
+        else:
+            dw_dT = w / T
 
-        # ── dw/dT via spline derivatives (analytical, no finite diff) ──
-        # w(k, T) = a(T) + b(T) * [rho(T)*(k-m(T)) + sqrt((k-m(T))^2 + sigma(T)^2)]
-        # dw/dT = da/dT + db/dT * [...] + b * d[...]/dT
-        da = float(splines["a"].derivative()(T))
-        db = float(splines["b"].derivative()(T))
-        drho = float(splines["rho"].derivative()(T))
-        dm = float(splines["m"].derivative()(T))
-        dsigma = float(splines["sigma"].derivative()(T))
-
-        u = k_grid - m
-        v = np.sqrt(u**2 + sigma**2)
-        bracket = rho * u + v
-
-        # d(bracket)/dT = drho*u + rho*(-dm) + d(v)/dT
-        # d(v)/dT = (u*(-dm) + sigma*dsigma) / v
-        dv_dT = (-u * dm + sigma * dsigma) / np.maximum(v, 1e-10)
-        dbracket_dT = drho * u + rho * (-dm) + dv_dT
-
-        dw_dT = da + db * bracket + b * dbracket_dT
-
-        # ── Dupire denominator (Durrleman condition g(k)) ──
+        # Dupire denominator (Durrleman condition g(k)).
         w_safe = np.maximum(w, 1e-10)
         denominator = (
             (1.0 - k_grid * w_prime / (2.0 * w_safe)) ** 2
@@ -145,15 +128,15 @@ def _compute_local_vol(
 
         local_vol[i, :] = np.sqrt(np.maximum(local_var, 0.0))
 
-    # ── Light post-processing ────────────────────────────────────────────
-    # Cap outliers (the spline approach should produce very few).
-    local_vol = np.where(local_vol > 1.0, np.nan, local_vol)
+    # ── Post-processing ──────────────────────────────────────────────────
+    # Cap extreme values before smoothing.
+    local_vol = np.where(local_vol > 0.80, np.nan, local_vol)
 
-    # Light Gaussian smoothing for visual polish.
+    # Normalized-convolution Gaussian smoothing (handles NaN properly).
     valid = np.isfinite(local_vol)
     filled = np.where(valid, local_vol, 0.0)
     weights = valid.astype(float)
-    sigma_smooth = (0.8, 1.2)
+    sigma_smooth = (1.0, 1.5)
     smoothed_num = gaussian_filter(filled, sigma=sigma_smooth)
     smoothed_den = gaussian_filter(weights, sigma=sigma_smooth)
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -162,9 +145,9 @@ def _compute_local_vol(
         )
 
     # Convert k_grid to strikes for each T.
-    F_vals = spot * np.exp((risk_free - div_yield) * T_grid_1d)
+    F_vals = spot * np.exp((risk_free - div_yield) * T_vals)
     strike_grid = np.outer(F_vals, np.exp(k_grid))
-    T_grid = np.tile(T_grid_1d[:, None], (1, n_k))
+    T_grid = np.tile(T_vals[:, None], (1, n_k))
 
     return strike_grid, T_grid, local_vol
 
@@ -179,33 +162,30 @@ def render_local_vol(
     """Render the local volatility surface in Streamlit."""
     st.subheader("Local Volatility Surface (Dupire)")
 
-    if slice_params.empty or len(slice_params) < 3:
+    if slice_params.empty or len(slice_params) < 2:
         st.warning("Not enough fitted slices for local vol computation.")
         return
 
     sorted_sp = slice_params.sort_values("T")
+    T_vals = _select_expiries(sorted_sp)
 
-    # Smooth SVI parameters across T.
-    splines = _smooth_svi_params(sorted_sp)
-
-    # Build a regular T grid spanning the fitted expiry range.
-    T_min = sorted_sp["T"].values[1]  # skip the very shortest slice
-    T_max = sorted_sp["T"].values[-1]
-    T_grid_1d = np.linspace(T_min, T_max, 30)
+    if len(T_vals) < 2:
+        st.warning("Not enough well-spaced expiry slices for local vol.")
+        return
 
     k_grid = np.linspace(-0.15, 0.15, 60)
 
     strike_grid, T_grid, local_vol = _compute_local_vol(
-        k_grid, T_grid_1d, splines, spot, risk_free, div_yield,
+        k_grid, T_vals, slice_params, spot, risk_free, div_yield,
     )
 
-    # Determine z-axis from data.
     valid_vals = local_vol[np.isfinite(local_vol)]
     if len(valid_vals) == 0:
         st.warning("Local vol computation produced no valid values.")
         return
-    z_max = min(float(np.percentile(valid_vals, 97)) * 1.3, 1.0)
-    z_max = max(z_max, 0.10)  # at least 10%
+
+    z_max = min(float(np.percentile(valid_vals, 97)) * 1.3, 0.80)
+    z_max = max(z_max, 0.10)
 
     col_3d, col_slice = st.columns([3, 2])
 
@@ -245,11 +225,10 @@ def render_local_vol(
 
     with col_slice:
         fig2 = go.Figure()
-        # Show ~8 evenly-spaced slices to keep the legend readable.
-        n_show = min(8, len(T_grid_1d))
-        indices = np.linspace(0, len(T_grid_1d) - 1, n_show, dtype=int)
+        n_show = min(8, len(T_vals))
+        indices = np.linspace(0, len(T_vals) - 1, n_show, dtype=int)
         for i in indices:
-            dte = round(T_grid_1d[i] * 365.25)
+            dte = round(T_vals[i] * 365.25)
             valid = np.isfinite(local_vol[i, :])
             if valid.any():
                 fig2.add_trace(go.Scatter(
