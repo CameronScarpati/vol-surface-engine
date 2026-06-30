@@ -1,9 +1,11 @@
 """
 Delta-space smile — implied volatility plotted against Black-Scholes delta.
 
-Practitioners quote volatility in delta-space (e.g. "25-delta put vol"), not
-strike-space.  This view normalises across expiries and makes skew/convexity
-directly comparable, which is how desks actually manage risk.
+Volatility is often quoted in delta-space (e.g. "25-delta put vol") rather than
+strike-space.  This view normalises across expiries so skew and convexity are
+directly comparable.  The 25-delta risk-reversal and butterfly here are
+approximations: they are evaluated at fixed log-moneyness anchors rather than by
+solving for the exact 25-delta strikes.
 """
 
 from __future__ import annotations

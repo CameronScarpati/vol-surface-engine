@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vol-surface-engine"
 version = "0.1.0"
-description = "Arbitrage-Free Volatility Surface Engine"
+description = "Volatility Surface Engine"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"

@@ -1,12 +1,12 @@
 """
-Streamlit Dashboard — Arbitrage-Free Volatility Surface Engine
+Streamlit Dashboard — Volatility Surface Engine
 
 Run with:
     streamlit run dashboard/app.py
 
 The dashboard supports two modes:
 1. **Live mode**: fetches real SPY options data via yfinance and runs the
-   full pipeline (data → IV → SVI → arbitrage).
+   full pipeline (data → IV → SVI → arbitrage diagnostics).
 2. **Placeholder mode**: uses synthetic data to demonstrate visualisations
    without any network dependency.
 """
@@ -67,7 +67,7 @@ st.set_page_config(
 # ═══════════════════════════════════════════════════════════════════════════
 
 st.sidebar.title("Volatility Surface Engine")
-st.sidebar.markdown("**Arbitrage-Free Implied Volatility Surface**")
+st.sidebar.markdown("**Implied Volatility Surface with Arbitrage Diagnostics**")
 
 data_source = st.sidebar.radio(
     "Data source",
@@ -88,7 +88,7 @@ st.sidebar.markdown(
     "1. **Data** — Options chain ingestion & cleaning\n"
     "2. **IV Engine** — Newton-Raphson + Brent fallback\n"
     "3. **SVI Fit** — Multi-start L-BFGS-B calibration\n"
-    "4. **Arbitrage** — Durrleman + calendar enforcement\n"
+    "4. **Arbitrage** — Durrleman + calendar diagnostics\n"
     "5. **Greeks** — BS sensitivities from fitted surface\n"
     "6. **Local Vol** — Dupire's formula"
 )
@@ -96,7 +96,7 @@ st.sidebar.markdown(
 st.sidebar.markdown("---")
 st.sidebar.markdown(
     "**Author:** Cameron Scarpati\n\n"
-    "Vanderbilt CS + Applied Math"
+    "Vanderbilt CS + Mathematics"
 )
 st.sidebar.markdown(
     "[Gatheral (2004)](https://doi.org/10.1002/wilm.10201) · "
@@ -203,17 +203,17 @@ def _load_live(symbol: str) -> VolSurface:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
-    st.title("Arbitrage-Free Volatility Surface Engine")
+    st.title("Volatility Surface Engine")
 
     # Methodology overview
     st.markdown(
-        "Constructs an arbitrage-free implied volatility surface by fitting the "
-        "**SVI parameterization** (Gatheral 2004) to market options data, enforcing "
-        "**no-butterfly arbitrage** via the Durrleman (2005) condition and "
-        "**no-calendar-spread arbitrage** via total-variance monotonicity. "
-        "The fitted surface is then used to derive **Black-Scholes Greeks** and "
-        "**Dupire local volatility** — the complete toolkit for derivatives pricing "
-        "and hedging."
+        "Constructs an implied volatility surface by fitting the "
+        "**SVI parameterization** (Gatheral 2004) to market options data, then "
+        "checks **no-butterfly arbitrage** via the Durrleman (2005) condition and "
+        "**no-calendar-spread arbitrage** via total-variance monotonicity and reports "
+        "any violations as diagnostics. The fitted surface is then used to derive "
+        "**Black-Scholes Greeks** and **Dupire local volatility**. This is a learning "
+        "project, not production pricing infrastructure."
     )
 
     # Load data
@@ -265,7 +265,7 @@ def main() -> None:
                 "strike (moneyness) and time to expiry. The surface is built by "
                 "fitting a Stochastic Volatility Inspired (SVI) model to each "
                 "expiry slice, then interpolating across tenors. A smooth, "
-                "well-behaved surface indicates consistent arbitrage-free pricing."
+                "well-behaved surface indicates a consistent fit across strikes and tenors."
             )
             render_surface_3d(chain, sp, surface.spot, surface.risk_free, surface.div_yield)
 
@@ -296,19 +296,20 @@ def main() -> None:
         with left2:
             st.caption(
                 "**Delta-Space Smile** — IV plotted against Black-Scholes "
-                "delta, the standard quoting convention on derivatives desks. "
+                "delta, a standard delta-space quoting convention. "
                 "Normalises across expiries so skew and convexity are directly "
-                "comparable. The 25Δ risk-reversal measures skew direction "
-                "while the 25Δ butterfly captures smile curvature."
+                "comparable. The 25Δ risk-reversal and butterfly shown here are "
+                "approximations, computed at fixed log-moneyness anchors rather "
+                "than solved exact-delta strikes."
             )
             render_delta_smile(chain, sp, surface.spot, surface.risk_free, surface.div_yield)
         with right2:
             st.caption(
                 "**Mispricing Table** — Options with the largest absolute "
-                "residuals between market IV and the SVI fit. These are "
-                "candidates where the market price diverges most from the "
-                "arbitrage-free model, potentially indicating trading "
-                "opportunities or data quality issues."
+                "residuals between market IV and the SVI fit. These are the "
+                "options that diverge most from the SVI fit, typically "
+                "indicating data quality issues or strikes the model fits "
+                "poorly."
             )
             render_mispricing_table(
                 chain, sp, surface.spot, surface.risk_free, surface.div_yield,
@@ -320,8 +321,7 @@ def main() -> None:
             "**Greeks Surface** — Black-Scholes sensitivities (Δ, Γ, ν, Θ) "
             "computed from the fitted SVI surface across the full (strike, T) "
             "grid. These are the quantities that drive hedging and risk "
-            "management — the primary reason for constructing a volatility "
-            "surface in production."
+            "management once a surface has been fit."
         )
         render_greeks(chain, sp, surface.spot, surface.risk_free, surface.div_yield)
 
@@ -339,7 +339,7 @@ def main() -> None:
     # ── Tab 5: Arbitrage Diagnostics ─────────────────────────────────────
     with tab_arb:
         st.caption(
-            "**Arbitrage Diagnostics** — Static no-arbitrage conditions verified "
+            "**Arbitrage Diagnostics** — Static no-arbitrage conditions checked "
             "across the surface. *Butterfly arbitrage* is checked via the "
             "Durrleman (2005) condition, which requires the risk-neutral density "
             "to be non-negative at every strike. *Calendar-spread arbitrage* "

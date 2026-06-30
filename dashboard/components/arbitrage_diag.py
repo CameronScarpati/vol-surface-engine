@@ -31,7 +31,7 @@ def render_arbitrage_diagnostics(
     is_arb_free = all_butterfly and diagnostics.calendar_free
 
     if is_arb_free:
-        st.success("Surface is arbitrage-free (butterfly + calendar)")
+        st.success("No arbitrage violations detected (butterfly + calendar)")
     else:
         st.error("Arbitrage violations detected")
 

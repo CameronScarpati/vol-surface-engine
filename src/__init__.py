@@ -1,4 +1,4 @@
-"""Arbitrage-Free Volatility Surface Engine.
+"""Volatility Surface Engine.
 
 Public API:
     - ``VolSurface`` / ``build_surface`` -- full pipeline entry point

@@ -1,7 +1,9 @@
 """
 Phase 4: No-Arbitrage Constraints
 
-Enforces static-arbitrage-free conditions on the fitted SVI surface:
+Checks static no-arbitrage conditions on the fitted SVI surface (and provides
+an optional penalized refit, `fit_svi_arbitrage_free`, that is not used by the
+default build pipeline):
 
 1. **Butterfly arbitrage** (Durrleman 2005) — the risk-neutral density must
    be non-negative everywhere.  This is equivalent to:

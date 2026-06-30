@@ -1,10 +1,10 @@
 """
 Greeks panel — Delta, Gamma, Vega surfaces from the fitted SVI surface.
 
-The primary purpose of constructing an arbitrage-free volatility surface is
-to price and hedge derivatives.  This panel computes Black-Scholes Greeks
-using the fitted IV at each (strike, T) point, giving traders the
-sensitivity profile across the entire surface.
+A common reason to construct a volatility surface is to price and hedge
+options.  This panel computes Black-Scholes Greeks using the fitted IV at
+each (strike, T) point, giving the sensitivity profile across the entire
+surface.
 """
 
 from __future__ import annotations

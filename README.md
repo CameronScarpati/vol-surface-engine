@@ -1,13 +1,13 @@
-# Arbitrage-Free Volatility Surface Engine
+# Volatility Surface Engine
 
 [![CI](https://github.com/CameronScarpati/vol-surface-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/CameronScarpati/vol-surface-engine/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-An end-to-end volatility surface construction engine that fetches live equity options data, extracts implied volatility via Newton-Raphson root-finding, calibrates per-expiry SVI parameterizations (Gatheral 2004), enforces no-arbitrage constraints through Durrleman's butterfly condition and calendar-spread monotonicity, and exposes the full surface — including Dupire local vol, Greeks, and residual diagnostics — through an interactive Streamlit dashboard.
+A learning project: an end-to-end volatility surface tool that fetches live equity options data, extracts implied volatility via Newton-Raphson root-finding, calibrates per-expiry SVI parameterizations (Gatheral 2004), checks no-arbitrage conditions (Durrleman's butterfly condition and calendar-spread monotonicity) and reports violations as diagnostics, and exposes the full surface, including Dupire local vol, Greeks, and residual diagnostics, through an interactive Streamlit dashboard.
 
-**~5,100 lines of Python** across a modular numerical engine (1,650 LOC), interactive dashboard (2,050 LOC), and comprehensive test suite (1,430 LOC / 130 tests). Built from scratch with a focus on numerical robustness, financial correctness, and clean architecture.
+**~5,100 lines of Python** across a modular numerical engine (1,650 LOC), interactive dashboard (2,050 LOC), and a test suite (1,432 LOC / 111 tests). Built from scratch with a focus on numerical robustness and clean architecture. It is exploratory rather than production pricing infrastructure; see [Scope and Limitations](#scope-and-limitations).
 
 ---
 
@@ -27,7 +27,7 @@ Live Market Data (yfinance)
 │ • Dividend yield    │     │   (multi-start        │     │   (Δ, Γ, ν, Θ)       │
 │   estimation        │     │   L-BFGS-B, 8 seeds)  │     │ • Dupire local vol   │
 │ • Adaptive filters: │     │ • Durrleman butterfly │     │ • Residual heatmap   │
-│   volume, moneyness,│     │   enforcement         │     │ • Arbitrage          │
+│   volume, moneyness,│     │   diagnostics         │     │ • Arbitrage          │
 │   bid-ask, MAD      │     │ • Calendar-spread     │     │   diagnostics        │
 │   outlier removal   │     │   monotonicity        │     │ • Delta-space smile  │
 └─────────────────────┘     └───────────────────────┘     │ • Term structure     │
@@ -41,13 +41,13 @@ Live Market Data (yfinance)
 | Component | Implementation | Why It Matters |
 |-----------|---------------|----------------|
 | **IV Extraction** | Newton-Raphson with Brenner-Subrahmanyam seed + Brent fallback; $\varepsilon < 10^{-10}$ | Robust convergence even in low-vega regions where naïve solvers fail |
-| **SVI Calibration** | 5-parameter raw SVI per slice; multi-start L-BFGS-B (8 seeds); OI-weighted objective | Captures smile shape with < 0.5 vol point RMSE while avoiding local minima |
-| **Arbitrage Enforcement** | Durrleman butterfly condition $g(k) \geq 0$; calendar-spread $\partial w / \partial T \geq 0$; progressive penalty ($\lambda$ up to $10^6$) | Guarantees non-negative risk-neutral density and monotone total variance |
+| **SVI Calibration** | 5-parameter raw SVI per slice; multi-start L-BFGS-B (8 seeds); OI-weighted objective | Captures smile shape with low total-variance RMSE (< 0.01 on synthetic round-trip data) while avoiding local minima |
+| **Arbitrage Diagnostics** | Durrleman butterfly condition $g(k) \geq 0$; calendar-spread $\partial w / \partial T \geq 0$ | Detects static-arbitrage violations and flags them; a penalized arbitrage-aware refit is implemented but is not enabled in the default build (the surface is arbitrage-checked, not guaranteed arbitrage-free) |
 | **Local Volatility** | Dupire (1994) via analytic SVI derivatives + finite-difference $\partial w / \partial T$; Gaussian-smoothed output | Extracts instantaneous diffusion coefficient implied by the market |
 | **Greeks** | Black-Scholes $\Delta$, $\Gamma$, $\nu$, $\Theta$ across full (strike, $T$) grid | Continuous Greeks surfaces rather than per-contract point estimates |
 | **Data Pipeline** | Adaptive multi-stage filtering: volume/OI, moneyness bounds, bid-ask validation, MAD-based outlier removal | Handles noisy real-world data — wide spreads flagged, stale quotes removed |
 | **Dashboard** | 8 interactive Plotly panels in Streamlit; live + synthetic modes | Full analytical toolkit: 3D surface, smile slices, delta-space, residual heatmap, arbitrage diagnostics |
-| **Testing** | 130 tests (pytest); unit tests per module + end-to-end integration; CI on Python 3.10–3.12 | Round-trip IV recovery from synthetic BS prices validates full pipeline correctness |
+| **Testing** | 111 tests (pytest); unit tests per module + end-to-end integration; CI on Python 3.10–3.12 | Round-trip IV recovery from synthetic BS prices validates the IV engine (price to IV and back) |
 
 ---
 
@@ -76,9 +76,9 @@ Five parameters per slice: $a$ (variance level), $b$ (wing slope), $\rho$ (skew)
 </details>
 
 <details>
-<summary><strong>No-Arbitrage Enforcement</strong></summary>
+<summary><strong>No-Arbitrage Diagnostics</strong></summary>
 
-The surface enforces static arbitrage freedom via:
+The surface is checked for static arbitrage via:
 
 **Butterfly arbitrage** — the Durrleman (2005) condition requires the risk-neutral density to be non-negative:
 
@@ -86,7 +86,7 @@ $$g(k) = \left(1 - \frac{k w'}{2w}\right)^2 - \frac{(w')^2}{4}\left(\frac{1}{w} 
 
 **Calendar-spread arbitrage** — total variance must be non-decreasing in time: $\partial w / \partial T \geq 0$.
 
-When violations are detected, parameters are re-fit with a progressive penalty method that escalates $\lambda$ until $g(k) \geq 0$ everywhere.
+A penalized refit that escalates $\lambda$ to push $g(k) \geq 0$ is implemented (`fit_svi_arbitrage_free` in `arbitrage.py`), but the default `build_surface` pipeline only detects and reports violations through `generate_diagnostics`; it does not invoke the penalized refit. The surface is therefore arbitrage-checked, not guaranteed arbitrage-free.
 </details>
 
 <details>
@@ -102,7 +102,7 @@ where the numerator uses finite differences across SVI slices and the denominato
 <details>
 <summary><strong>Greeks & Delta-Space Analysis</strong></summary>
 
-Black-Scholes Greeks ($\Delta$, $\Gamma$, $\nu$, $\Theta$) are computed from the fitted IV surface across the full (strike, $T$) grid. The dashboard includes delta-space smile views with standard quoting conventions (25$\Delta$ risk-reversals and butterflies) used on derivatives trading desks.
+Black-Scholes Greeks ($\Delta$, $\Gamma$, $\nu$, $\Theta$) are computed from the fitted IV surface across the full (strike, $T$) grid. The dashboard includes delta-space smile views with approximate 25$\Delta$ risk-reversal and butterfly metrics (computed at fixed log-moneyness anchors rather than solved exact-delta strikes).
 </details>
 
 ---
@@ -166,9 +166,9 @@ vol-surface-engine/
 ├── tests/
 │   ├── conftest.py                # Shared fixtures + synthetic data helpers
 │   ├── test_data_loader.py        # Data layer unit tests
-│   ├── test_iv_engine.py          # IV engine unit tests (48 tests)
+│   ├── test_iv_engine.py          # IV engine unit tests (29 tests)
 │   ├── test_svi_fitter.py         # SVI fitter unit tests
-│   ├── test_arbitrage.py          # Arbitrage enforcement unit tests
+│   ├── test_arbitrage.py          # Arbitrage diagnostics unit tests
 │   └── test_integration.py        # End-to-end pipeline tests (28 tests)
 ├── docs/
 │   └── screenshot.png             # Dashboard screenshot
@@ -187,8 +187,20 @@ vol-surface-engine/
 | **Numerical Engine** | Python, NumPy, SciPy (L-BFGS-B, Brent root-finding), Pandas |
 | **Visualization** | Plotly (3D surfaces, interactive charts), Streamlit |
 | **Market Data** | yfinance (options chains, spot prices), FRED API (risk-free rate) |
-| **Testing & CI** | pytest (130 tests), GitHub Actions (Python 3.10–3.12 matrix) |
+| **Testing & CI** | pytest (111 tests), GitHub Actions (Python 3.10–3.12 matrix) |
 | **Code Quality** | Ruff (linting + formatting), pyproject.toml configuration |
+
+---
+
+## Scope and Limitations
+
+This is a personal learning project for working through the mechanics of volatility surface construction. It is exploratory rather than production pricing infrastructure, and a few things are worth stating plainly:
+
+- **Arbitrage is checked, not enforced.** The default `build_surface` pipeline fits SVI per slice and then runs `generate_diagnostics` to detect butterfly and calendar-spread violations. A penalized arbitrage-aware refit (`fit_svi_arbitrage_free`) exists but is not wired into the default build, so the surface is arbitrage-checked, not guaranteed arbitrage-free.
+- **Accuracy numbers are on synthetic data.** The reported fit quality (R² and RMSE) comes from round-trip tests on synthetic Black-Scholes prices. RMSE is measured in total-variance space, not implied-vol points. Live yfinance chains are noisier, and fit quality on real data varies with liquidity and quote staleness.
+- **Round-trip test scope.** The integration round-trip validates the IV engine (price to IV and back). It does not end-to-end validate SVI calibration, interpolation, Greeks, or local vol against an independent ground truth.
+- **Approximate delta-space metrics.** The 25-delta risk-reversal and butterfly are computed at fixed log-moneyness anchors, not by solving for exact 25-delta strikes, so they are approximations of the desk convention.
+- **Data dependence.** Live mode depends on yfinance option chains and a FRED risk-free rate; both can be incomplete or delayed, and the dashboard falls back to synthetic data when a fetch fails.
 
 ---
 
