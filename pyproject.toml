@@ -10,14 +10,15 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [{ name = "Cameron Scarpati" }]
-keywords = ["volatility", "options", "SVI", "arbitrage", "implied-volatility", "quantitative-finance"]
+keywords = ["volatility", "options", "SVI", "implied-volatility", "volatility-surface"]
 classifiers = [
     "Development Status :: 4 - Beta",
-    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering :: Mathematics",
 ]
 dependencies = [
     "numpy>=1.24",
