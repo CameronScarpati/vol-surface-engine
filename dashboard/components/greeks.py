@@ -152,13 +152,15 @@ def render_greeks(
     fig2 = go.Figure()
     for i, (_, row) in enumerate(sorted_sp.iterrows()):
         dte = round(row["T"] * 365.25)
-        fig2.add_trace(go.Scatter(
-            x=strikes,
-            y=greek_grid[i, :],
-            mode="lines",
-            name=f"{dte}d",
-            line=dict(width=1.5),
-        ))
+        fig2.add_trace(
+            go.Scatter(
+                x=strikes,
+                y=greek_grid[i, :],
+                mode="lines",
+                name=f"{dte}d",
+                line=dict(width=1.5),
+            )
+        )
 
     fig2.update_layout(
         xaxis_title="Strike",
@@ -170,7 +172,10 @@ def render_greeks(
 
     # Add ATM reference line
     fig2.add_vline(
-        x=spot, line_dash="dash", line_color="gray", line_width=1,
+        x=spot,
+        line_dash="dash",
+        line_color="gray",
+        line_width=1,
         annotation_text="ATM",
     )
 

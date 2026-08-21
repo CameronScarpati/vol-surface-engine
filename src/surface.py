@@ -36,8 +36,8 @@ __all__ = [
 class VolSurface:
     """Fully calibrated volatility surface with diagnostics."""
 
-    chain: pd.DataFrame          # options chain with 'iv' column
-    slice_params: pd.DataFrame   # SVI params per expiry
+    chain: pd.DataFrame  # options chain with 'iv' column
+    slice_params: pd.DataFrame  # SVI params per expiry
     diagnostics: ArbitrageDiagnostics
     spot: float
     risk_free: float
@@ -69,9 +69,7 @@ class VolSurface:
             mask = np.isclose(self.slice_params["T"].values, T, atol=1e-6)
             if mask.any():
                 sp = self.slice_params[mask].iloc[0]
-                w = svi_total_variance(
-                    k, sp["a"], sp["b"], sp["rho"], sp["m"], sp["sigma"]
-                )
+                w = svi_total_variance(k, sp["a"], sp["b"], sp["rho"], sp["m"], sp["sigma"])
                 w_val = float(np.squeeze(w))
                 fitted[i] = float(np.sqrt(max(w_val, 0.0) / T)) if T > 0 else np.nan
             else:
@@ -193,8 +191,7 @@ def build_surface(
 
         # Remove IVs too far from the slice median.
         outlier = mask & (
-            ((chain_iv["iv"] - med).abs() > 3.0 * mad)
-            | (chain_iv["iv"] > max(3.0 * med, 1.5))
+            ((chain_iv["iv"] - med).abs() > 3.0 * mad) | (chain_iv["iv"] > max(3.0 * med, 1.5))
         )
 
         # Don't remove outliers if it would leave fewer than 5 points

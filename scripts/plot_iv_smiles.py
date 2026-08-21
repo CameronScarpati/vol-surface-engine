@@ -88,10 +88,7 @@ def main(fresh: bool = False) -> None:
                     marker=dict(size=5, color=color, symbol=symbol),
                     name=f"{otype} (T={sub['T'].iloc[0]:.3f}y)",
                     showlegend=(idx == 0),
-                    hovertemplate=(
-                        "K=%{x:.1f}<br>IV=%{y:.4f}<br>"
-                        f"type={otype}<extra></extra>"
-                    ),
+                    hovertemplate=(f"K=%{{x:.1f}}<br>IV=%{{y:.4f}}<br>type={otype}<extra></extra>"),
                 ),
                 row=row,
                 col=col,

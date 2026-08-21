@@ -76,11 +76,7 @@ def render_residual_heatmap(
             zmin=-abs_max,
             zmax=abs_max,
             colorbar=dict(title="Residual IV"),
-            hovertemplate=(
-                "Strike: %{x:.0f}<br>"
-                "DTE: %{y}d<br>"
-                "Residual: %{z:.4f}<extra></extra>"
-            ),
+            hovertemplate=("Strike: %{x:.0f}<br>DTE: %{y}d<br>Residual: %{z:.4f}<extra></extra>"),
             connectgaps=False,
         )
     )

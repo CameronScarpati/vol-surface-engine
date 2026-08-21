@@ -71,22 +71,24 @@ def render_delta_smile(
         if mask.sum() < 5:
             continue
 
-        fig.add_trace(go.Scatter(
-            x=delta[mask],
-            y=iv[mask],
-            mode="lines",
-            name=f"{dte}d",
-            line=dict(width=2),
-            hovertemplate=(
-                "Delta: %{x:.2f}<br>"
-                "IV: %{y:.2%}<extra></extra>"
-            ),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=delta[mask],
+                y=iv[mask],
+                mode="lines",
+                name=f"{dte}d",
+                line=dict(width=2),
+                hovertemplate=("Delta: %{x:.2f}<br>IV: %{y:.2%}<extra></extra>"),
+            )
+        )
 
     # Mark standard delta pillars
     for d_val, label in [(0.25, "25Δ Put"), (0.50, "ATM"), (0.75, "25Δ Call")]:
         fig.add_vline(
-            x=d_val, line_dash="dot", line_color="gray", line_width=0.8,
+            x=d_val,
+            line_dash="dot",
+            line_color="gray",
+            line_width=0.8,
             annotation_text=label,
             annotation_position="top",
             annotation_font_size=9,
@@ -114,15 +116,27 @@ def render_delta_smile(
 
         # Compute IV at standard delta pillars via SVI
         # 25D put ~ k ≈ -0.15 to -0.25, 25D call ~ k ≈ 0.10 to 0.20, ATM ~ k=0
-        w_atm = float(np.squeeze(svi_total_variance(0.0, row["a"], row["b"], row["rho"], row["m"], row["sigma"])))
+        w_atm = float(
+            np.squeeze(
+                svi_total_variance(0.0, row["a"], row["b"], row["rho"], row["m"], row["sigma"])
+            )
+        )
         iv_atm = np.sqrt(max(w_atm, 0.0) / T)
 
         # Approximate 25-delta strikes via SVI
         k_25p = -0.20  # rough 25Δ put moneyness
-        k_25c = 0.15   # rough 25Δ call moneyness
+        k_25c = 0.15  # rough 25Δ call moneyness
 
-        w_25p = float(np.squeeze(svi_total_variance(k_25p, row["a"], row["b"], row["rho"], row["m"], row["sigma"])))
-        w_25c = float(np.squeeze(svi_total_variance(k_25c, row["a"], row["b"], row["rho"], row["m"], row["sigma"])))
+        w_25p = float(
+            np.squeeze(
+                svi_total_variance(k_25p, row["a"], row["b"], row["rho"], row["m"], row["sigma"])
+            )
+        )
+        w_25c = float(
+            np.squeeze(
+                svi_total_variance(k_25c, row["a"], row["b"], row["rho"], row["m"], row["sigma"])
+            )
+        )
         iv_25p = np.sqrt(max(w_25p, 0.0) / T)
         iv_25c = np.sqrt(max(w_25c, 0.0) / T)
 
@@ -130,14 +144,16 @@ def render_delta_smile(
         rr_25 = iv_25c - iv_25p
         bf_25 = (iv_25c + iv_25p) / 2 - iv_atm
 
-        skew_rows.append({
-            "DTE": dte,
-            "ATM IV": f"{iv_atm:.2%}",
-            "25Δ RR": f"{rr_25:+.2%}",
-            "25Δ BF": f"{bf_25:+.2%}",
-            "25Δ Put IV": f"{iv_25p:.2%}",
-            "25Δ Call IV": f"{iv_25c:.2%}",
-        })
+        skew_rows.append(
+            {
+                "DTE": dte,
+                "ATM IV": f"{iv_atm:.2%}",
+                "25Δ RR": f"{rr_25:+.2%}",
+                "25Δ BF": f"{bf_25:+.2%}",
+                "25Δ Put IV": f"{iv_25p:.2%}",
+                "25Δ Call IV": f"{iv_25c:.2%}",
+            }
+        )
 
     if skew_rows:
         st.dataframe(

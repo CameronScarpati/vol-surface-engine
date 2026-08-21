@@ -150,7 +150,12 @@ def render_surface_3d(
 
     # Build the fitted surface grid
     strikes_grid, T_grid, fit_iv = _build_fitted_surface(
-        slice_params, spot, risk_free, div_yield, strike_lo, strike_hi,
+        slice_params,
+        spot,
+        risk_free,
+        div_yield,
+        strike_lo,
+        strike_hi,
     )
 
     # Adaptive IV cap for the fitted surface to prevent extreme wing artifacts
@@ -159,26 +164,44 @@ def render_surface_3d(
 
     # Get market IV scatter points
     mkt_strikes, mkt_t_days, mkt_ivs, residuals = _get_market_iv_points(
-        chain, slice_params, spot, risk_free, div_yield,
+        chain,
+        slice_params,
+        spot,
+        risk_free,
+        div_yield,
     )
 
     if view_mode == "SVI-fitted":
-        _render_fitted_surface(fig_data=[], strikes_grid=strikes_grid,
-                               T_grid=T_grid, fit_iv=fit_iv_capped, st=st)
+        _render_fitted_surface(
+            fig_data=[], strikes_grid=strikes_grid, T_grid=T_grid, fit_iv=fit_iv_capped, st=st
+        )
     elif view_mode == "Market IV":
         _render_market_iv(
-            strikes_grid, T_grid, fit_iv_capped,
-            mkt_strikes, mkt_t_days, mkt_ivs,
+            strikes_grid,
+            T_grid,
+            fit_iv_capped,
+            mkt_strikes,
+            mkt_t_days,
+            mkt_ivs,
         )
     else:
         _render_residual(
-            strikes_grid, T_grid, fit_iv_capped,
-            mkt_strikes, mkt_t_days, mkt_ivs, residuals,
+            strikes_grid,
+            T_grid,
+            fit_iv_capped,
+            mkt_strikes,
+            mkt_t_days,
+            mkt_ivs,
+            residuals,
         )
 
 
 def _render_fitted_surface(
-    fig_data, strikes_grid, T_grid, fit_iv, st,
+    fig_data,
+    strikes_grid,
+    T_grid,
+    fit_iv,
+    st,
 ) -> None:
     """Render the SVI-fitted surface."""
     z_flat = fit_iv[np.isfinite(fit_iv)]
@@ -202,9 +225,7 @@ def _render_fitted_surface(
                 cmin=z_range[0],
                 cmax=z_range[1],
                 hovertemplate=(
-                    "Strike: %{x:.1f}<br>"
-                    "DTE: %{y:.0f} days<br>"
-                    "IV: %{z:.4f}<extra></extra>"
+                    "Strike: %{x:.1f}<br>DTE: %{y:.0f} days<br>IV: %{z:.4f}<extra></extra>"
                 ),
             )
         ]
@@ -225,8 +246,12 @@ def _render_fitted_surface(
 
 
 def _render_market_iv(
-    strikes_grid, T_grid, fit_iv,
-    mkt_strikes, mkt_t_days, mkt_ivs,
+    strikes_grid,
+    T_grid,
+    fit_iv,
+    mkt_strikes,
+    mkt_t_days,
+    mkt_ivs,
 ) -> None:
     """Render market IV as scatter points overlaid on the fitted surface."""
     fig = go.Figure()
@@ -315,8 +340,13 @@ def _render_market_iv(
 
 
 def _render_residual(
-    strikes_grid, T_grid, fit_iv,
-    mkt_strikes, mkt_t_days, mkt_ivs, residuals,
+    strikes_grid,
+    T_grid,
+    fit_iv,
+    mkt_strikes,
+    mkt_t_days,
+    mkt_ivs,
+    residuals,
 ) -> None:
     """Render residuals as scatter points with fitted surface for reference."""
     fig = go.Figure()
@@ -365,9 +395,7 @@ def _render_residual(
             ),
             name="Residual",
             hovertemplate=(
-                "Strike: %{x:.1f}<br>"
-                "DTE: %{y:.0f} days<br>"
-                "Residual: %{z:.4f}<extra></extra>"
+                "Strike: %{x:.1f}<br>DTE: %{y:.0f} days<br>Residual: %{z:.4f}<extra></extra>"
             ),
         )
     )

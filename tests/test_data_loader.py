@@ -24,9 +24,7 @@ def _make_raw_chain(
     """Build a realistic-looking raw options chain DataFrame."""
     now = pd.Timestamp.now(tz=timezone.utc).normalize()
 
-    expiries = [
-        now + pd.Timedelta(days=d) for d in [1, 7, 30, 60, 90, 180]
-    ]
+    expiries = [now + pd.Timedelta(days=d) for d in [1, 7, 30, 60, 90, 180]]
 
     rows = []
     for exp in expiries:
@@ -94,9 +92,19 @@ class TestCleanChain:
         raw["openInterest"] = 100
         result = clean_chain(raw, 500.0, 0.04, 0.01)
         expected_cols = {
-            "expiry", "strike", "option_type", "mid_price",
-            "bid", "ask", "volume", "open_interest",
-            "S", "r", "q", "T", "low_confidence",
+            "expiry",
+            "strike",
+            "option_type",
+            "mid_price",
+            "bid",
+            "ask",
+            "volume",
+            "open_interest",
+            "S",
+            "r",
+            "q",
+            "T",
+            "low_confidence",
         }
         assert set(result.columns) == expected_cols
 

@@ -57,25 +57,33 @@ def _render_butterfly(
 
     for _, row in slice_params.iterrows():
         params = SVIParams(
-            a=row["a"], b=row["b"], rho=row["rho"],
-            m=row["m"], sigma=row["sigma"],
+            a=row["a"],
+            b=row["b"],
+            rho=row["rho"],
+            m=row["m"],
+            sigma=row["sigma"],
         )
         g = durrleman_condition(k_grid, params)
         dte = round(row["T"] * 365.25)
         label = str(row.get("expiry", f"T={row['T']:.4f}"))
         is_free = diagnostics.butterfly_free.get(label, True)
 
-        fig.add_trace(go.Scatter(
-            x=k_grid,
-            y=g,
-            mode="lines",
-            name=f"{dte}d {'✓' if is_free else '✗'}",
-            line=dict(width=1.5),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=k_grid,
+                y=g,
+                mode="lines",
+                name=f"{dte}d {'✓' if is_free else '✗'}",
+                line=dict(width=1.5),
+            )
+        )
 
     # Zero line
     fig.add_hline(
-        y=0, line_dash="dash", line_color="red", line_width=1,
+        y=0,
+        line_dash="dash",
+        line_color="red",
+        line_width=1,
         annotation_text="g(k) = 0 (violation boundary)",
         annotation_position="bottom right",
     )
@@ -102,18 +110,23 @@ def _render_butterfly(
             for _, row in slice_params.iterrows():
                 if str(row.get("expiry", f"T={row['T']:.4f}")) == label:
                     params = SVIParams(
-                        a=row["a"], b=row["b"], rho=row["rho"],
-                        m=row["m"], sigma=row["sigma"],
+                        a=row["a"],
+                        b=row["b"],
+                        rho=row["rho"],
+                        m=row["m"],
+                        sigma=row["sigma"],
                     )
                     g = durrleman_condition(k_grid, params)
                     min_g_val = float(np.min(g))
                     break
 
-        rows.append({
-            "Slice": label,
-            "Status": "PASS" if is_free else "FAIL",
-            "min g(k)": f"{min_g_val:.6f}",
-        })
+        rows.append(
+            {
+                "Slice": label,
+                "Status": "PASS" if is_free else "FAIL",
+                "min g(k)": f"{min_g_val:.6f}",
+            }
+        )
     if rows:
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
@@ -148,20 +161,20 @@ def _render_calendar(
         w_vals = []
         T_vals = []
         for _, row in sorted_slices.iterrows():
-            w = svi_total_variance(
-                k_val, row["a"], row["b"], row["rho"], row["m"], row["sigma"]
-            )
+            w = svi_total_variance(k_val, row["a"], row["b"], row["rho"], row["m"], row["sigma"])
             w_vals.append(float(np.squeeze(w)))
             T_vals.append(row["T"])
 
-        fig.add_trace(go.Scatter(
-            x=[t * 365.25 for t in T_vals],
-            y=w_vals,
-            mode="lines+markers",
-            name=f"k={k_val:.2f}",
-            line=dict(width=2),
-            marker=dict(size=5),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[t * 365.25 for t in T_vals],
+                y=w_vals,
+                mode="lines+markers",
+                name=f"k={k_val:.2f}",
+                line=dict(width=2),
+                marker=dict(size=5),
+            )
+        )
 
     fig.update_layout(
         xaxis_title="Days to Expiry",

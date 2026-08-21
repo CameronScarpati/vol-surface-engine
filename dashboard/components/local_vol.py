@@ -95,18 +95,26 @@ def _compute_local_vol(
             idx_n = (sorted_sp["T"] - T_next).abs().argsort().values[:1]
             sp_p = sorted_sp.iloc[idx_p[0]]
             sp_n = sorted_sp.iloc[idx_n[0]]
-            w_prev = svi_total_variance(k_grid, sp_p["a"], sp_p["b"], sp_p["rho"], sp_p["m"], sp_p["sigma"])
-            w_next = svi_total_variance(k_grid, sp_n["a"], sp_n["b"], sp_n["rho"], sp_n["m"], sp_n["sigma"])
+            w_prev = svi_total_variance(
+                k_grid, sp_p["a"], sp_p["b"], sp_p["rho"], sp_p["m"], sp_p["sigma"]
+            )
+            w_next = svi_total_variance(
+                k_grid, sp_n["a"], sp_n["b"], sp_n["rho"], sp_n["m"], sp_n["sigma"]
+            )
             dw_dT = (w_next - w_prev) / (T_next - T_prev)
         elif i == 0 and n_T > 1:
             idx_n = (sorted_sp["T"] - T_vals[1]).abs().argsort().values[:1]
             sp_n = sorted_sp.iloc[idx_n[0]]
-            w_next = svi_total_variance(k_grid, sp_n["a"], sp_n["b"], sp_n["rho"], sp_n["m"], sp_n["sigma"])
+            w_next = svi_total_variance(
+                k_grid, sp_n["a"], sp_n["b"], sp_n["rho"], sp_n["m"], sp_n["sigma"]
+            )
             dw_dT = (w_next - w) / (T_vals[1] - T)
         elif i == n_T - 1 and n_T > 1:
             idx_p = (sorted_sp["T"] - T_vals[i - 1]).abs().argsort().values[:1]
             sp_p = sorted_sp.iloc[idx_p[0]]
-            w_prev = svi_total_variance(k_grid, sp_p["a"], sp_p["b"], sp_p["rho"], sp_p["m"], sp_p["sigma"])
+            w_prev = svi_total_variance(
+                k_grid, sp_p["a"], sp_p["b"], sp_p["rho"], sp_p["m"], sp_p["sigma"]
+            )
             dw_dT = (w - w_prev) / (T - T_vals[i - 1])
         else:
             dw_dT = w / T
@@ -143,7 +151,9 @@ def _compute_local_vol(
     smoothed_den = gaussian_filter(weights, sigma=sigma_smooth)
     with np.errstate(divide="ignore", invalid="ignore"):
         local_vol = np.where(
-            smoothed_den > 0.25, smoothed_num / smoothed_den, np.nan,
+            smoothed_den > 0.25,
+            smoothed_num / smoothed_den,
+            np.nan,
         )
 
     # Convert k_grid to strikes for each T.
@@ -179,7 +189,12 @@ def render_local_vol(
     k_grid = np.linspace(-0.20, 0.20, 80)
 
     strike_grid, T_grid, local_vol = _compute_local_vol(
-        k_grid, T_vals, slice_params, spot, risk_free, div_yield,
+        k_grid,
+        T_vals,
+        slice_params,
+        spot,
+        risk_free,
+        div_yield,
     )
 
     valid_vals = local_vol[np.isfinite(local_vol)]
@@ -204,9 +219,7 @@ def render_local_vol(
                     cmax=z_max,
                     colorbar=dict(title="σ_loc", tickformat=".0%"),
                     hovertemplate=(
-                        "Strike: %{x:.1f}<br>"
-                        "DTE: %{y:.0f}<br>"
-                        "Local Vol: %{z:.2%}<extra></extra>"
+                        "Strike: %{x:.1f}<br>DTE: %{y:.0f}<br>Local Vol: %{z:.2%}<extra></extra>"
                     ),
                 )
             ]
@@ -234,16 +247,21 @@ def render_local_vol(
             dte = round(T_vals[i] * 365.25)
             valid = np.isfinite(local_vol[i, :])
             if valid.any():
-                fig2.add_trace(go.Scatter(
-                    x=strike_grid[i, valid],
-                    y=local_vol[i, valid],
-                    mode="lines",
-                    name=f"{dte}d",
-                    line=dict(width=1.5),
-                ))
+                fig2.add_trace(
+                    go.Scatter(
+                        x=strike_grid[i, valid],
+                        y=local_vol[i, valid],
+                        mode="lines",
+                        name=f"{dte}d",
+                        line=dict(width=1.5),
+                    )
+                )
 
         fig2.add_vline(
-            x=spot, line_dash="dash", line_color="gray", line_width=1,
+            x=spot,
+            line_dash="dash",
+            line_color="gray",
+            line_width=1,
             annotation_text="ATM",
         )
 

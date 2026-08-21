@@ -227,7 +227,9 @@ def clean_chain(
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     if "open_interest" in df.columns:
-        df["open_interest"] = pd.to_numeric(df["open_interest"], errors="coerce").fillna(0).astype(int)
+        df["open_interest"] = (
+            pd.to_numeric(df["open_interest"], errors="coerce").fillna(0).astype(int)
+        )
 
     # --- Mid-price ---------------------------------------------------------
     df["mid_price"] = (df["bid"] + df["ask"]) / 2.0

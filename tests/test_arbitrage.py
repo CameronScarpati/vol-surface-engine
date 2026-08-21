@@ -97,13 +97,26 @@ class TestCheckCalendarArbitrage:
 
     def test_dataframe_input(self):
         """Accepts DataFrame from fit_all_slices."""
-        df = pd.DataFrame([
-            {"T": 0.25, "a": _AF_PARAMS.a, "b": _AF_PARAMS.b,
-             "rho": _AF_PARAMS.rho, "m": _AF_PARAMS.m, "sigma": _AF_PARAMS.sigma},
-            {"T": 1.0, "a": _AF_PARAMS_LONG.a, "b": _AF_PARAMS_LONG.b,
-             "rho": _AF_PARAMS_LONG.rho, "m": _AF_PARAMS_LONG.m,
-             "sigma": _AF_PARAMS_LONG.sigma},
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "T": 0.25,
+                    "a": _AF_PARAMS.a,
+                    "b": _AF_PARAMS.b,
+                    "rho": _AF_PARAMS.rho,
+                    "m": _AF_PARAMS.m,
+                    "sigma": _AF_PARAMS.sigma,
+                },
+                {
+                    "T": 1.0,
+                    "a": _AF_PARAMS_LONG.a,
+                    "b": _AF_PARAMS_LONG.b,
+                    "rho": _AF_PARAMS_LONG.rho,
+                    "m": _AF_PARAMS_LONG.m,
+                    "sigma": _AF_PARAMS_LONG.sigma,
+                },
+            ]
+        )
         assert check_calendar_arbitrage(df) is True
 
 
@@ -113,9 +126,7 @@ class TestCheckCalendarArbitrage:
 class TestFitSVIArbitrageFree:
     """Test the penalty-method constrained fitter."""
 
-    def _generate_smile(
-        self, params: SVIParams, n: int = 40
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def _generate_smile(self, params: SVIParams, n: int = 40) -> tuple[np.ndarray, np.ndarray]:
         k = np.linspace(-0.4, 0.4, n)
         w = svi_total_variance(k, params.a, params.b, params.rho, params.m, params.sigma)
         return k, w
@@ -149,15 +160,28 @@ class TestFitSVIArbitrageFree:
 # ---------------------------------------------------------------------------
 class TestGenerateDiagnostics:
     def _make_slice_df(self) -> pd.DataFrame:
-        return pd.DataFrame([
-            {"expiry": "2026-04-01", "T": 0.25,
-             "a": _AF_PARAMS.a, "b": _AF_PARAMS.b, "rho": _AF_PARAMS.rho,
-             "m": _AF_PARAMS.m, "sigma": _AF_PARAMS.sigma},
-            {"expiry": "2027-01-01", "T": 1.0,
-             "a": _AF_PARAMS_LONG.a, "b": _AF_PARAMS_LONG.b,
-             "rho": _AF_PARAMS_LONG.rho, "m": _AF_PARAMS_LONG.m,
-             "sigma": _AF_PARAMS_LONG.sigma},
-        ])
+        return pd.DataFrame(
+            [
+                {
+                    "expiry": "2026-04-01",
+                    "T": 0.25,
+                    "a": _AF_PARAMS.a,
+                    "b": _AF_PARAMS.b,
+                    "rho": _AF_PARAMS.rho,
+                    "m": _AF_PARAMS.m,
+                    "sigma": _AF_PARAMS.sigma,
+                },
+                {
+                    "expiry": "2027-01-01",
+                    "T": 1.0,
+                    "a": _AF_PARAMS_LONG.a,
+                    "b": _AF_PARAMS_LONG.b,
+                    "rho": _AF_PARAMS_LONG.rho,
+                    "m": _AF_PARAMS_LONG.m,
+                    "sigma": _AF_PARAMS_LONG.sigma,
+                },
+            ]
+        )
 
     def test_clean_surface_all_pass(self):
         df = self._make_slice_df()
@@ -173,31 +197,55 @@ class TestGenerateDiagnostics:
 
     def test_detects_butterfly_violation(self):
         """Inject a violating slice and verify detection."""
-        df = pd.DataFrame([
-            {"expiry": "2026-04-01", "T": 0.25,
-             "a": _VIOLATING_PARAMS.a, "b": _VIOLATING_PARAMS.b,
-             "rho": _VIOLATING_PARAMS.rho, "m": _VIOLATING_PARAMS.m,
-             "sigma": _VIOLATING_PARAMS.sigma},
-            {"expiry": "2027-01-01", "T": 1.0,
-             "a": _AF_PARAMS_LONG.a, "b": _AF_PARAMS_LONG.b,
-             "rho": _AF_PARAMS_LONG.rho, "m": _AF_PARAMS_LONG.m,
-             "sigma": _AF_PARAMS_LONG.sigma},
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "expiry": "2026-04-01",
+                    "T": 0.25,
+                    "a": _VIOLATING_PARAMS.a,
+                    "b": _VIOLATING_PARAMS.b,
+                    "rho": _VIOLATING_PARAMS.rho,
+                    "m": _VIOLATING_PARAMS.m,
+                    "sigma": _VIOLATING_PARAMS.sigma,
+                },
+                {
+                    "expiry": "2027-01-01",
+                    "T": 1.0,
+                    "a": _AF_PARAMS_LONG.a,
+                    "b": _AF_PARAMS_LONG.b,
+                    "rho": _AF_PARAMS_LONG.rho,
+                    "m": _AF_PARAMS_LONG.m,
+                    "sigma": _AF_PARAMS_LONG.sigma,
+                },
+            ]
+        )
         diag = generate_diagnostics(df)
         assert not all(diag.butterfly_free.values())
 
     def test_detects_calendar_violation(self):
         """Reversed variance ordering should flag calendar arb."""
-        df = pd.DataFrame([
-            {"expiry": "2026-04-01", "T": 0.25,
-             "a": _AF_PARAMS_LONG.a, "b": _AF_PARAMS_LONG.b,
-             "rho": _AF_PARAMS_LONG.rho, "m": _AF_PARAMS_LONG.m,
-             "sigma": _AF_PARAMS_LONG.sigma},
-            {"expiry": "2027-01-01", "T": 1.0,
-             "a": _AF_PARAMS.a, "b": _AF_PARAMS.b,
-             "rho": _AF_PARAMS.rho, "m": _AF_PARAMS.m,
-             "sigma": _AF_PARAMS.sigma},
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "expiry": "2026-04-01",
+                    "T": 0.25,
+                    "a": _AF_PARAMS_LONG.a,
+                    "b": _AF_PARAMS_LONG.b,
+                    "rho": _AF_PARAMS_LONG.rho,
+                    "m": _AF_PARAMS_LONG.m,
+                    "sigma": _AF_PARAMS_LONG.sigma,
+                },
+                {
+                    "expiry": "2027-01-01",
+                    "T": 1.0,
+                    "a": _AF_PARAMS.a,
+                    "b": _AF_PARAMS.b,
+                    "rho": _AF_PARAMS.rho,
+                    "m": _AF_PARAMS.m,
+                    "sigma": _AF_PARAMS.sigma,
+                },
+            ]
+        )
         diag = generate_diagnostics(df)
         assert diag.calendar_free is False
         assert len(diag.calendar_violation_expiries) > 0

@@ -72,21 +72,23 @@ def make_synthetic_chain(
                 spread_pct = rng.uniform(0.03, 0.15)
                 spread = mid * spread_pct
 
-                rows.append({
-                    "expiry": exp,
-                    "strike": round(K, 2),
-                    "option_type": otype,
-                    "mid_price": round(mid, 4),
-                    "bid": round(mid - spread / 2, 4),
-                    "ask": round(mid + spread / 2, 4),
-                    "volume": int(rng.exponential(500)) + 1,
-                    "open_interest": int(rng.exponential(3000)) + 1,
-                    "S": SPOT,
-                    "r": RISK_FREE,
-                    "q": DIV_YIELD,
-                    "T": round(T, 6),
-                    "low_confidence": spread_pct > 0.10,
-                })
+                rows.append(
+                    {
+                        "expiry": exp,
+                        "strike": round(K, 2),
+                        "option_type": otype,
+                        "mid_price": round(mid, 4),
+                        "bid": round(mid - spread / 2, 4),
+                        "ask": round(mid + spread / 2, 4),
+                        "volume": int(rng.exponential(500)) + 1,
+                        "open_interest": int(rng.exponential(3000)) + 1,
+                        "S": SPOT,
+                        "r": RISK_FREE,
+                        "q": DIV_YIELD,
+                        "T": round(T, 6),
+                        "low_confidence": spread_pct > 0.10,
+                    }
+                )
 
     return pd.DataFrame(rows)
 

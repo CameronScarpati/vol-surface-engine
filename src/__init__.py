@@ -14,9 +14,11 @@ def __getattr__(name: str):
     """Lazy import for data_loader to avoid requiring yfinance at import time."""
     if name == "OptionsData":
         from src.data_loader import OptionsData
+
         return OptionsData
     if name == "load_options":
         from src.data_loader import load_options
+
         return load_options
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

@@ -33,10 +33,13 @@ def main() -> None:
         description="Download options data and build volatility surface",
     )
     parser.add_argument(
-        "--symbol", default="SPY", help="Ticker symbol (default: SPY)",
+        "--symbol",
+        default="SPY",
+        help="Ticker symbol (default: SPY)",
     )
     parser.add_argument(
-        "--synthetic", action="store_true",
+        "--synthetic",
+        action="store_true",
         help="Generate synthetic data instead of fetching live data",
     )
     args = parser.parse_args()
@@ -44,6 +47,7 @@ def main() -> None:
     if args.synthetic:
         logger.info("Generating synthetic data ...")
         from scripts.generate_synthetic_data import main as gen_main
+
         gen_main()
         return
 
@@ -51,9 +55,9 @@ def main() -> None:
     logger.info("Fetching live options data for %s ...", args.symbol)
     opts = load_options(args.symbol, use_cache=False)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {args.symbol} Options Data Summary")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Spot price:     ${opts.spot:.2f}")
     print(f"  Risk-free rate: {opts.risk_free:.4f} ({opts.risk_free:.2%})")
     print(f"  Dividend yield: {opts.div_yield:.4f} ({opts.div_yield:.2%})")
@@ -71,10 +75,12 @@ def main() -> None:
 
     # Fit quality
     print(f"\n  {'Expiry':<12} {'DTE':>5} {'RMSE':>10} {'R²':>8} {'Points':>7}")
-    print(f"  {'-'*44}")
+    print(f"  {'-' * 44}")
     for _, row in surface.slice_params.iterrows():
         dte = round(row["T"] * 365.25)
-        print(f"  {'':12} {dte:>5}d {row['rmse']:>10.6f} {row['r_squared']:>8.4f} {int(row['n_points']):>7}")
+        print(
+            f"  {'':12} {dte:>5}d {row['rmse']:>10.6f} {row['r_squared']:>8.4f} {int(row['n_points']):>7}"
+        )
 
     # Arbitrage status
     n_bf = sum(surface.diagnostics.butterfly_free.values())
@@ -82,7 +88,7 @@ def main() -> None:
     cal_status = "PASS" if surface.diagnostics.calendar_free else "FAIL"
     print(f"\n  Butterfly-free:  {n_bf}/{total} slices")
     print(f"  Calendar-free:   {cal_status}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":

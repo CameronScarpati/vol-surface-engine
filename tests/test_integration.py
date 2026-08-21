@@ -91,12 +91,8 @@ class TestIVToSVIPipeline:
         slice_params = fit_all_slices(chain_iv)
 
         for _, row in slice_params.iterrows():
-            assert row["r_squared"] > 0.95, (
-                f"T={row['T']:.4f}: R^2={row['r_squared']:.4f}"
-            )
-            assert row["rmse"] < 0.01, (
-                f"T={row['T']:.4f}: RMSE={row['rmse']:.6f}"
-            )
+            assert row["r_squared"] > 0.95, f"T={row['T']:.4f}: R^2={row['r_squared']:.4f}"
+            assert row["rmse"] < 0.01, f"T={row['T']:.4f}: RMSE={row['rmse']:.6f}"
 
     def test_svi_params_within_bounds(self):
         """Fitted SVI parameters should be within expected bounds."""

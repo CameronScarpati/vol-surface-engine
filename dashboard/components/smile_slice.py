@@ -67,12 +67,22 @@ def render_smile_slices(
         valid_strikes = []
         for _, row in slice_data.iterrows():
             bid_iv = implied_volatility(
-                row["bid"], row["S"], row["strike"], row["T"],
-                row["r"], row["q"], row["option_type"],
+                row["bid"],
+                row["S"],
+                row["strike"],
+                row["T"],
+                row["r"],
+                row["q"],
+                row["option_type"],
             )
             ask_iv = implied_volatility(
-                row["ask"], row["S"], row["strike"], row["T"],
-                row["r"], row["q"], row["option_type"],
+                row["ask"],
+                row["S"],
+                row["strike"],
+                row["T"],
+                row["r"],
+                row["q"],
+                row["option_type"],
             )
             if np.isfinite(bid_iv) and np.isfinite(ask_iv):
                 iv_bid.append(bid_iv)
@@ -80,43 +90,46 @@ def render_smile_slices(
                 valid_strikes.append(row["strike"])
 
         if valid_strikes:
-            fig.add_trace(go.Scatter(
-                x=valid_strikes + valid_strikes[::-1],
-                y=iv_ask + iv_bid[::-1],
-                fill="toself",
-                fillcolor="rgba(135, 206, 250, 0.25)",
-                line=dict(width=0),
-                name="Bid-Ask IV Band",
-                hoverinfo="skip",
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=valid_strikes + valid_strikes[::-1],
+                    y=iv_ask + iv_bid[::-1],
+                    fill="toself",
+                    fillcolor="rgba(135, 206, 250, 0.25)",
+                    line=dict(width=0),
+                    name="Bid-Ask IV Band",
+                    hoverinfo="skip",
+                )
+            )
 
     # SVI fit curve
-    fig.add_trace(go.Scatter(
-        x=strikes_fine,
-        y=iv_fine,
-        mode="lines",
-        name="SVI Fit",
-        line=dict(color="#1f77b4", width=2.5),
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=strikes_fine,
+            y=iv_fine,
+            mode="lines",
+            name="SVI Fit",
+            line=dict(color="#1f77b4", width=2.5),
+        )
+    )
 
     # Market IV scatter
-    fig.add_trace(go.Scatter(
-        x=slice_data["strike"],
-        y=slice_data["iv"],
-        mode="markers",
-        name="Market IV",
-        marker=dict(
-            size=7,
-            color=slice_data["iv"],
-            colorscale="Viridis",
-            showscale=False,
-            line=dict(width=0.5, color="black"),
-        ),
-        hovertemplate=(
-            "Strike: %{x:.1f}<br>"
-            "Market IV: %{y:.4f}<extra></extra>"
-        ),
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=slice_data["strike"],
+            y=slice_data["iv"],
+            mode="markers",
+            name="Market IV",
+            marker=dict(
+                size=7,
+                color=slice_data["iv"],
+                colorscale="Viridis",
+                showscale=False,
+                line=dict(width=0.5, color="black"),
+            ),
+            hovertemplate=("Strike: %{x:.1f}<br>Market IV: %{y:.4f}<extra></extra>"),
+        )
+    )
 
     fig.update_layout(
         xaxis_title="Strike",

@@ -50,7 +50,7 @@ class TestSVITotalVariance:
         # Left asymptote slope  ~ b*(rho-1) = 0.15*(-1.3) = -0.195
         # (but it's a V-shape, so left wing goes *up* in total variance)
         assert w_right[0] > 1.0  # large positive
-        assert w_left[0] > 1.0   # also large positive (put wing)
+        assert w_left[0] > 1.0  # also large positive (put wing)
 
     def test_positive_variance_at_vertex(self):
         """Total variance must be positive for sensible parameters."""
@@ -220,22 +220,23 @@ class TestFitAllSlices:
             for K in strikes:
                 k = np.log(K / F)
                 # Use known SVI to generate total variance
-                w = float(svi_total_variance(
-                    k, 0.04, 0.15, -0.3, 0.0, 0.1
-                ))
+                w = float(svi_total_variance(k, 0.04, 0.15, -0.3, 0.0, 0.1))
                 iv = np.sqrt(max(w / T, 1e-8))
                 for otype in ["call", "put"]:
-                    rows.append({
-                        "expiry": pd.Timestamp("2026-01-01") + pd.Timedelta(days=int(T * 365.25)),
-                        "strike": K,
-                        "option_type": otype,
-                        "iv": iv + rng.normal(0, 0.001),
-                        "S": S,
-                        "r": r,
-                        "q": q,
-                        "T": T,
-                        "open_interest": rng.integers(100, 5000),
-                    })
+                    rows.append(
+                        {
+                            "expiry": pd.Timestamp("2026-01-01")
+                            + pd.Timedelta(days=int(T * 365.25)),
+                            "strike": K,
+                            "option_type": otype,
+                            "iv": iv + rng.normal(0, 0.001),
+                            "S": S,
+                            "r": r,
+                            "q": q,
+                            "T": T,
+                            "open_interest": rng.integers(100, 5000),
+                        }
+                    )
 
         return pd.DataFrame(rows)
 
@@ -263,11 +264,37 @@ class TestFitAllSlices:
 # ---------------------------------------------------------------------------
 class TestInterpolateSurface:
     def _make_slice_params(self) -> pd.DataFrame:
-        return pd.DataFrame([
-            {"expiry": "2026-02-01", "T": 0.1, "a": 0.04, "b": 0.15, "rho": -0.3, "m": 0.0, "sigma": 0.1},
-            {"expiry": "2026-06-01", "T": 0.5, "a": 0.05, "b": 0.12, "rho": -0.25, "m": 0.0, "sigma": 0.12},
-            {"expiry": "2027-01-01", "T": 1.0, "a": 0.06, "b": 0.10, "rho": -0.20, "m": 0.0, "sigma": 0.15},
-        ])
+        return pd.DataFrame(
+            [
+                {
+                    "expiry": "2026-02-01",
+                    "T": 0.1,
+                    "a": 0.04,
+                    "b": 0.15,
+                    "rho": -0.3,
+                    "m": 0.0,
+                    "sigma": 0.1,
+                },
+                {
+                    "expiry": "2026-06-01",
+                    "T": 0.5,
+                    "a": 0.05,
+                    "b": 0.12,
+                    "rho": -0.25,
+                    "m": 0.0,
+                    "sigma": 0.12,
+                },
+                {
+                    "expiry": "2027-01-01",
+                    "T": 1.0,
+                    "a": 0.06,
+                    "b": 0.10,
+                    "rho": -0.20,
+                    "m": 0.0,
+                    "sigma": 0.15,
+                },
+            ]
+        )
 
     def test_at_exact_expiry(self):
         """Interpolation at an exact slice T should match the slice."""

@@ -85,7 +85,11 @@ def durrleman_condition(
         Values of g(k).  Negative values indicate arbitrage.
     """
     a, b, rho, m, sigma = (
-        svi_params.a, svi_params.b, svi_params.rho, svi_params.m, svi_params.sigma
+        svi_params.a,
+        svi_params.b,
+        svi_params.rho,
+        svi_params.m,
+        svi_params.sigma,
     )
 
     w = svi_total_variance(k, a, b, rho, m, sigma)
@@ -172,9 +176,7 @@ def check_calendar_arbitrage(
         w_short = svi_total_variance(
             k_grid, p_short.a, p_short.b, p_short.rho, p_short.m, p_short.sigma
         )
-        w_long = svi_total_variance(
-            k_grid, p_long.a, p_long.b, p_long.rho, p_long.m, p_long.sigma
-        )
+        w_long = svi_total_variance(k_grid, p_long.a, p_long.b, p_long.rho, p_long.m, p_long.sigma)
 
         if np.any((w_long - w_short) < tol):
             return False
@@ -190,10 +192,15 @@ def _to_params_list(
         params = []
         df = source.sort_values("T").reset_index(drop=True)
         for _, row in df.iterrows():
-            params.append(SVIParams(
-                a=row["a"], b=row["b"], rho=row["rho"],
-                m=row["m"], sigma=row["sigma"],
-            ))
+            params.append(
+                SVIParams(
+                    a=row["a"],
+                    b=row["b"],
+                    rho=row["rho"],
+                    m=row["m"],
+                    sigma=row["sigma"],
+                )
+            )
         return params
     return list(source)
 
@@ -275,15 +282,19 @@ def fit_svi_arbitrage_free(
         penalty_fn = lambda x: _butterfly_penalty(x, k_check)  # noqa: E731
 
         params = fit_svi_slice(
-            k, w, weights=weights,
-            penalty_fn=penalty_fn, penalty_lambda=lam,
+            k,
+            w,
+            weights=weights,
+            penalty_fn=penalty_fn,
+            penalty_lambda=lam,
             n_restarts=12,
         )
 
         if check_butterfly_arbitrage(k_check, params):
             logger.info(
                 "Arbitrage-free fit achieved at lambda=%.1f (iteration %d)",
-                lam, iteration + 1,
+                lam,
+                iteration + 1,
             )
             return params
 
@@ -293,7 +304,8 @@ def fit_svi_arbitrage_free(
 
     logger.warning(
         "Could not fully eliminate butterfly arbitrage "
-        "(lambda reached %.1e); returning best-effort fit", lam
+        "(lambda reached %.1e); returning best-effort fit",
+        lam,
     )
     return params
 
@@ -339,8 +351,11 @@ def generate_diagnostics(
     for _, row in df.iterrows():
         label = str(row["expiry"])
         params = SVIParams(
-            a=row["a"], b=row["b"], rho=row["rho"],
-            m=row["m"], sigma=row["sigma"],
+            a=row["a"],
+            b=row["b"],
+            rho=row["rho"],
+            m=row["m"],
+            sigma=row["sigma"],
         )
         g = durrleman_condition(k_grid, params)
         is_free = bool(np.all(g >= -1e-10))
@@ -358,9 +373,7 @@ def generate_diagnostics(
         w_short = svi_total_variance(
             k_grid, p_short.a, p_short.b, p_short.rho, p_short.m, p_short.sigma
         )
-        w_long = svi_total_variance(
-            k_grid, p_long.a, p_long.b, p_long.rho, p_long.m, p_long.sigma
-        )
+        w_long = svi_total_variance(k_grid, p_long.a, p_long.b, p_long.rho, p_long.m, p_long.sigma)
 
         if np.any((w_long - w_short) < -1e-10):
             label_short = str(df.iloc[i]["expiry"])

@@ -140,11 +140,11 @@ def svi_second_derivative(
 # Parameter bounds (Gatheral & Jacquier 2014)
 # ---------------------------------------------------------------------------
 PARAM_BOUNDS = [
-    (-0.5, 0.5),    # a – variance level
-    (1e-4, 2.0),    # b – slope (positive)
-    (-0.999, 0.999), # rho – skew
-    (-1.0, 1.0),    # m – translation
-    (1e-4, 2.0),    # sigma – curvature (positive)
+    (-0.5, 0.5),  # a – variance level
+    (1e-4, 2.0),  # b – slope (positive)
+    (-0.999, 0.999),  # rho – skew
+    (-1.0, 1.0),  # m – translation
+    (1e-4, 2.0),  # sigma – curvature (positive)
 ]
 
 
@@ -199,9 +199,7 @@ def fit_svi_slice(
     w = np.asarray(w_array, dtype=np.float64)
 
     if len(k) < 5:
-        raise ValueError(
-            f"Need at least 5 data points to fit 5 SVI parameters, got {len(k)}"
-        )
+        raise ValueError(f"Need at least 5 data points to fit 5 SVI parameters, got {len(k)}")
 
     # Normalise weights
     if weights is not None:
@@ -225,13 +223,15 @@ def fit_svi_slice(
     # Generate start points: heuristic + random
     starts = [x0_heuristic]
     for _ in range(n_restarts):
-        x0 = np.array([
-            rng.uniform(-0.1, 0.3),
-            rng.uniform(0.01, 0.5),
-            rng.uniform(-0.8, 0.2),
-            rng.uniform(-0.3, 0.3),
-            rng.uniform(0.01, 0.5),
-        ])
+        x0 = np.array(
+            [
+                rng.uniform(-0.1, 0.3),
+                rng.uniform(0.01, 0.5),
+                rng.uniform(-0.8, 0.2),
+                rng.uniform(-0.3, 0.3),
+                rng.uniform(0.01, 0.5),
+            ]
+        )
         starts.append(x0)
 
     for x0 in starts:
@@ -313,19 +313,24 @@ def fit_all_slices(
 
     for expiry, group in df.groupby("expiry"):
         # De-duplicate by strike (average calls/puts at same strike)
-        slice_df = group.groupby("k").agg(
-            w=("w", "mean"),
-            weight=(weight_col, "sum") if weight_col and weight_col in group.columns else ("w", "count"),
-        ).reset_index().sort_values("k")
+        slice_df = (
+            group.groupby("k")
+            .agg(
+                w=("w", "mean"),
+                weight=(weight_col, "sum")
+                if weight_col and weight_col in group.columns
+                else ("w", "count"),
+            )
+            .reset_index()
+            .sort_values("k")
+        )
 
         k_arr = slice_df["k"].values
         w_arr = slice_df["w"].values
         wts = slice_df["weight"].values if weight_col else None
 
         if len(k_arr) < 5:
-            logger.warning(
-                "Skipping expiry %s: only %d unique strikes", expiry, len(k_arr)
-            )
+            logger.warning("Skipping expiry %s: only %d unique strikes", expiry, len(k_arr))
             continue
 
         try:
@@ -335,23 +340,29 @@ def fit_all_slices(
             continue
 
         T_val = float(group["T"].iloc[0])
-        results.append({
-            "expiry": expiry,
-            "T": T_val,
-            "a": params.a,
-            "b": params.b,
-            "rho": params.rho,
-            "m": params.m,
-            "sigma": params.sigma,
-            "rmse": params.rmse,
-            "r_squared": params.r_squared,
-            "max_abs_error": params.max_abs_error,
-            "n_points": params.n_points,
-        })
+        results.append(
+            {
+                "expiry": expiry,
+                "T": T_val,
+                "a": params.a,
+                "b": params.b,
+                "rho": params.rho,
+                "m": params.m,
+                "sigma": params.sigma,
+                "rmse": params.rmse,
+                "r_squared": params.r_squared,
+                "max_abs_error": params.max_abs_error,
+                "n_points": params.n_points,
+            }
+        )
 
         logger.info(
             "Expiry %s (T=%.3f): RMSE=%.6f  R²=%.4f  max|err|=%.6f",
-            expiry, T_val, params.rmse, params.r_squared, params.max_abs_error,
+            expiry,
+            T_val,
+            params.rmse,
+            params.r_squared,
+            params.max_abs_error,
         )
 
     return pd.DataFrame(results)
@@ -407,8 +418,12 @@ def interpolate_surface(
 
     T_lo, T_hi = row_lo["T"], row_hi["T"]
 
-    w_lo = svi_total_variance(k, row_lo["a"], row_lo["b"], row_lo["rho"], row_lo["m"], row_lo["sigma"])
-    w_hi = svi_total_variance(k, row_hi["a"], row_hi["b"], row_hi["rho"], row_hi["m"], row_hi["sigma"])
+    w_lo = svi_total_variance(
+        k, row_lo["a"], row_lo["b"], row_lo["rho"], row_lo["m"], row_lo["sigma"]
+    )
+    w_hi = svi_total_variance(
+        k, row_hi["a"], row_hi["b"], row_hi["rho"], row_hi["m"], row_hi["sigma"]
+    )
 
     # Linear interpolation in total variance
     alpha = (T - T_lo) / (T_hi - T_lo)

@@ -94,10 +94,7 @@ st.sidebar.markdown(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.markdown(
-    "**Author:** Cameron Scarpati\n\n"
-    "Vanderbilt CS + Mathematics"
-)
+st.sidebar.markdown("**Author:** Cameron Scarpati\n\nVanderbilt CS + Mathematics")
 st.sidebar.markdown(
     "[Gatheral (2004)](https://doi.org/10.1002/wilm.10201) · "
     "[Durrleman (2005)](https://www.princeton.edu/~durrleman/) · "
@@ -108,6 +105,7 @@ st.sidebar.markdown(
 # ═══════════════════════════════════════════════════════════════════════════
 # Placeholder data generator
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @st.cache_data(show_spinner="Generating synthetic surface …")
 def _generate_placeholder() -> VolSurface:
@@ -151,7 +149,12 @@ def _generate_placeholder() -> VolSurface:
         strikes = F * np.exp(k_values)
 
         w_true = svi_total_variance(
-            k_values, svi.a, svi.b, svi.rho, svi.m, svi.sigma,
+            k_values,
+            svi.a,
+            svi.b,
+            svi.rho,
+            svi.m,
+            svi.sigma,
         )
         iv_true = np.sqrt(np.maximum(w_true, 1e-8) / T)
 
@@ -166,21 +169,23 @@ def _generate_placeholder() -> VolSurface:
                 bid = max(0.01, price - spread / 2)
                 ask = price + spread / 2
 
-                rows.append({
-                    "expiry": expiry_date,
-                    "strike": K,
-                    "option_type": otype,
-                    "mid_price": price,
-                    "bid": bid,
-                    "ask": ask,
-                    "volume": int(rng.integers(10, 5000)),
-                    "open_interest": int(rng.integers(100, 50000)),
-                    "S": spot,
-                    "r": r,
-                    "q": q,
-                    "T": T,
-                    "low_confidence": spread / price > 0.20 if price > 0 else True,
-                })
+                rows.append(
+                    {
+                        "expiry": expiry_date,
+                        "strike": K,
+                        "option_type": otype,
+                        "mid_price": price,
+                        "bid": bid,
+                        "ask": ask,
+                        "volume": int(rng.integers(10, 5000)),
+                        "open_interest": int(rng.integers(100, 50000)),
+                        "S": spot,
+                        "r": r,
+                        "q": q,
+                        "T": T,
+                        "low_confidence": spread / price > 0.20 if price > 0 else True,
+                    }
+                )
 
     chain = pd.DataFrame(rows)
     return build_surface(chain, spot, r, q)
@@ -189,6 +194,7 @@ def _generate_placeholder() -> VolSurface:
 # ═══════════════════════════════════════════════════════════════════════════
 # Live data loader
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @st.cache_data(show_spinner="Fetching live options data …", ttl=300)
 def _load_live(symbol: str) -> VolSurface:
@@ -201,6 +207,7 @@ def _load_live(symbol: str) -> VolSurface:
 # ═══════════════════════════════════════════════════════════════════════════
 # Main layout
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def main() -> None:
     st.title("Volatility Surface Engine")
@@ -247,14 +254,16 @@ def main() -> None:
     st.markdown("---")
 
     # ── Tab-based navigation for clean organization ──────────────────────
-    tab_surface, tab_smiles, tab_greeks, tab_localvol, tab_arb, tab_term = st.tabs([
-        "Volatility Surface",
-        "Smile Analysis",
-        "Greeks",
-        "Local Volatility",
-        "Arbitrage Diagnostics",
-        "Term Structure",
-    ])
+    tab_surface, tab_smiles, tab_greeks, tab_localvol, tab_arb, tab_term = st.tabs(
+        [
+            "Volatility Surface",
+            "Smile Analysis",
+            "Greeks",
+            "Local Volatility",
+            "Arbitrage Diagnostics",
+            "Term Structure",
+        ]
+    )
 
     # ── Tab 1: Volatility Surface ────────────────────────────────────────
     with tab_surface:
@@ -312,7 +321,11 @@ def main() -> None:
                 "poorly."
             )
             render_mispricing_table(
-                chain, sp, surface.spot, surface.risk_free, surface.div_yield,
+                chain,
+                sp,
+                surface.spot,
+                surface.risk_free,
+                surface.div_yield,
             )
 
     # ── Tab 3: Greeks ────────────────────────────────────────────────────

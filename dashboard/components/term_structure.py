@@ -40,14 +40,16 @@ def render_term_structure(
         atm_ivs.append(float(np.sqrt(max(w_val, 0.0) / row["T"])) if row["T"] > 0 else np.nan)
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=dte,
-        y=atm_ivs,
-        mode="lines+markers",
-        name="ATM IV (SVI fit, k=0)",
-        line=dict(width=2.5, color="#1f77b4"),
-        marker=dict(size=7),
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=dte,
+            y=atm_ivs,
+            mode="lines+markers",
+            name="ATM IV (SVI fit, k=0)",
+            line=dict(width=2.5, color="#1f77b4"),
+            marker=dict(size=7),
+        )
+    )
 
     # Overlay market ATM IV where available
     market_atm = []
@@ -64,13 +66,15 @@ def render_term_structure(
             market_dte.append(T * 365.25)
 
     if market_atm:
-        fig.add_trace(go.Scatter(
-            x=market_dte,
-            y=market_atm,
-            mode="markers",
-            name="Market ATM IV",
-            marker=dict(size=8, symbol="diamond", color="#ff7f0e"),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=market_dte,
+                y=market_atm,
+                mode="markers",
+                name="Market ATM IV",
+                marker=dict(size=8, symbol="diamond", color="#ff7f0e"),
+            )
+        )
 
     fig.update_layout(
         xaxis_title="Days to Expiry",
@@ -84,11 +88,17 @@ def render_term_structure(
     # SVI parameter evolution
     st.subheader("SVI Parameter Evolution")
 
-    param_names = [("a", "Level (a)"), ("b", "Angle (b)"), ("rho", "Skew (ρ)"),
-                   ("m", "Translation (m)"), ("sigma", "Curvature (σ)")]
+    param_names = [
+        ("a", "Level (a)"),
+        ("b", "Angle (b)"),
+        ("rho", "Skew (ρ)"),
+        ("m", "Translation (m)"),
+        ("sigma", "Curvature (σ)"),
+    ]
 
     fig2 = make_subplots(
-        rows=3, cols=2,
+        rows=3,
+        cols=2,
         subplot_titles=[name for _, name in param_names] + [""],
         vertical_spacing=0.10,
         horizontal_spacing=0.08,
@@ -105,7 +115,8 @@ def render_term_structure(
                 marker=dict(size=5),
                 showlegend=False,
             ),
-            row=r, col=c,
+            row=r,
+            col=c,
         )
         fig2.update_xaxes(title_text="DTE" if r == 3 else "", row=r, col=c)
         fig2.update_yaxes(title_text=label, row=r, col=c)
@@ -141,7 +152,9 @@ def render_mispricing_table(
     from scipy.stats import norm as _norm
 
     sqrt_T = np.sqrt(df["T"])
-    d1 = (np.log(df["S"] / df["strike"]) + (df["r"] - df["q"] + 0.5 * df["iv"]**2) * df["T"]) / (df["iv"] * sqrt_T)
+    d1 = (np.log(df["S"] / df["strike"]) + (df["r"] - df["q"] + 0.5 * df["iv"] ** 2) * df["T"]) / (
+        df["iv"] * sqrt_T
+    )
     call_delta = np.exp(-df["q"] * df["T"]) * _norm.cdf(d1)
     df["delta"] = np.where(
         df["option_type"] == "call",
@@ -151,9 +164,22 @@ def render_mispricing_table(
 
     top = (
         df.dropna(subset=["residual"])
-        .nlargest(top_n, "abs_residual")
-        [["strike", "DTE", "option_type", "delta", "moneyness", "iv", "fitted_iv",
-          "residual", "direction", "bid", "ask", "bid_ask_spread"]]
+        .nlargest(top_n, "abs_residual")[
+            [
+                "strike",
+                "DTE",
+                "option_type",
+                "delta",
+                "moneyness",
+                "iv",
+                "fitted_iv",
+                "residual",
+                "direction",
+                "bid",
+                "ask",
+                "bid_ask_spread",
+            ]
+        ]
         .reset_index(drop=True)
     )
 

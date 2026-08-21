@@ -23,6 +23,7 @@ SPOT = 560.0
 R = 0.0435
 Q = 0.013
 
+
 # Realistic SPY IV surface: base vol + skew + smile
 def synthetic_iv(K: float, T: float, S: float = SPOT) -> float:
     """Generate a realistic implied volatility for SPY.
@@ -78,21 +79,23 @@ def main() -> None:
                 vol = int(np.random.exponential(500)) + 1
                 oi = int(np.random.exponential(3000)) + 1
 
-                rows.append({
-                    "expiry": exp,
-                    "strike": round(K, 2),
-                    "option_type": otype,
-                    "mid_price": round(mid, 4),
-                    "bid": round(mid - spread / 2, 4),
-                    "ask": round(mid + spread / 2, 4),
-                    "volume": vol,
-                    "open_interest": oi,
-                    "S": SPOT,
-                    "r": R,
-                    "q": Q,
-                    "T": round(T, 6),
-                    "low_confidence": spread_pct > 0.10,
-                })
+                rows.append(
+                    {
+                        "expiry": exp,
+                        "strike": round(K, 2),
+                        "option_type": otype,
+                        "mid_price": round(mid, 4),
+                        "bid": round(mid - spread / 2, 4),
+                        "ask": round(mid + spread / 2, 4),
+                        "volume": vol,
+                        "open_interest": oi,
+                        "S": SPOT,
+                        "r": R,
+                        "q": Q,
+                        "T": round(T, 6),
+                        "low_confidence": spread_pct > 0.10,
+                    }
+                )
 
     df = pd.DataFrame(rows)
     out_path = Path(__file__).resolve().parent.parent / "data" / "spy_options.parquet"
