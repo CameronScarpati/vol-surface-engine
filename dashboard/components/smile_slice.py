@@ -12,6 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from dashboard.components.helpers import ACCENT, ACCENT_WARM
 from src.iv_engine import implied_volatility
 from src.svi_fitter import svi_total_variance
 
@@ -51,8 +52,8 @@ def render_smile_slices(
     F = spot * np.exp((risk_free - div_yield) * T_sel)
 
     # Smooth SVI curve over a fine strike grid
-    k_min = np.log(slice_data["strike"].min() / F) - 0.05
-    k_max = np.log(slice_data["strike"].max() / F) + 0.05
+    k_min = np.log(slice_data["strike"].min() / F) - 0.02
+    k_max = np.log(slice_data["strike"].max() / F) + 0.02
     k_fine = np.linspace(k_min, k_max, 200)
     strikes_fine = F * np.exp(k_fine)
     w_fine = svi_total_variance(k_fine, sp["a"], sp["b"], sp["rho"], sp["m"], sp["sigma"])
@@ -95,7 +96,7 @@ def render_smile_slices(
                     x=valid_strikes + valid_strikes[::-1],
                     y=iv_ask + iv_bid[::-1],
                     fill="toself",
-                    fillcolor="rgba(135, 206, 250, 0.25)",
+                    fillcolor="rgba(42, 120, 214, 0.14)",
                     line=dict(width=0),
                     name="Bid-Ask IV Band",
                     hoverinfo="skip",
@@ -109,7 +110,7 @@ def render_smile_slices(
             y=iv_fine,
             mode="lines",
             name="SVI Fit",
-            line=dict(color="#1f77b4", width=2.5),
+            line=dict(color=ACCENT, width=2.5),
         )
     )
 
@@ -122,10 +123,8 @@ def render_smile_slices(
             name="Market IV",
             marker=dict(
                 size=7,
-                color=slice_data["iv"],
-                colorscale="Viridis",
-                showscale=False,
-                line=dict(width=0.5, color="black"),
+                color=ACCENT_WARM,
+                line=dict(width=0.5, color="white"),
             ),
             hovertemplate=("Strike: %{x:.1f}<br>Market IV: %{y:.4f}<extra></extra>"),
         )
@@ -139,7 +138,7 @@ def render_smile_slices(
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # Fit quality metrics
     cols = st.columns(3)

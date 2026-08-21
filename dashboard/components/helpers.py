@@ -1,7 +1,7 @@
 """Shared helper functions for dashboard components.
 
 Consolidates repeated computation patterns (forward price, log-moneyness,
-fitted IV from SVI params) so each component doesn't re-implement them.
+fitted IV from SVI params) so components do not re-implement them.
 """
 
 from __future__ import annotations
@@ -13,6 +13,37 @@ from src.svi_fitter import svi_total_variance
 
 # Tolerance for matching floating-point T values across DataFrames.
 T_TOLERANCE = 1e-6
+
+# Shared chart styling: one accent pair and a single-hue ramp so every
+# panel reads as part of the same system.
+ACCENT = "#2a78d6"
+ACCENT_WARM = "#eb6834"
+INK_SOFT = "#52514e"
+
+# Blue ramp, light to dark, used both as a Plotly colorscale and for
+# maturity-ordered line families.
+BLUE_RAMP = [
+    "#cde2fb",
+    "#9ec5f4",
+    "#6da7ec",
+    "#3987e5",
+    "#2a78d6",
+    "#1c5cab",
+    "#104281",
+    "#0d366b",
+]
+BLUES_SCALE = [[i / (len(BLUE_RAMP) - 1), c] for i, c in enumerate(BLUE_RAMP)]
+
+
+def expiry_line_colors(n: int) -> list[str]:
+    """Ordered colors for a family of expiry lines, light for the
+    shortest maturity through dark for the longest, sampled from the
+    visible part of the blue ramp."""
+    if n <= 1:
+        return [ACCENT]
+    lo, hi = 1, len(BLUE_RAMP) - 1  # skip the lightest step on white
+    idx = [lo + (hi - lo) * i / (n - 1) for i in range(n)]
+    return [BLUE_RAMP[round(i)] for i in idx]
 
 
 def forward_price(S: float, r: float, q: float, T: float) -> float:

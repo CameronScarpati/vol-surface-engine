@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from dashboard.components.helpers import compute_chain_fitted_iv
+from dashboard.components.helpers import ACCENT, ACCENT_WARM, compute_chain_fitted_iv
 from src.svi_fitter import svi_total_variance
 
 
@@ -46,7 +46,7 @@ def render_term_structure(
             y=atm_ivs,
             mode="lines+markers",
             name="ATM IV (SVI fit, k=0)",
-            line=dict(width=2.5, color="#1f77b4"),
+            line=dict(width=2.5, color=ACCENT),
             marker=dict(size=7),
         )
     )
@@ -72,7 +72,7 @@ def render_term_structure(
                 y=market_atm,
                 mode="markers",
                 name="Market ATM IV",
-                marker=dict(size=8, symbol="diamond", color="#ff7f0e"),
+                marker=dict(size=8, symbol="diamond", color=ACCENT_WARM),
             )
         )
 
@@ -83,7 +83,7 @@ def render_term_structure(
         margin=dict(l=50, r=20, t=30, b=40),
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # SVI parameter evolution
     st.subheader("SVI Parameter Evolution")
@@ -112,7 +112,8 @@ def render_term_structure(
                 y=sorted_sp[col_name],
                 mode="lines+markers",
                 name=label,
-                marker=dict(size=5),
+                line=dict(color=ACCENT, width=2),
+                marker=dict(size=5, color=ACCENT),
                 showlegend=False,
             ),
             row=r,
@@ -122,7 +123,7 @@ def render_term_structure(
         fig2.update_yaxes(title_text=label, row=r, col=c)
 
     fig2.update_layout(height=650, margin=dict(l=50, r=20, t=40, b=40))
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
 
 def render_mispricing_table(
@@ -197,7 +198,7 @@ def render_mispricing_table(
 
     st.dataframe(
         top.style.format(fmt),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 

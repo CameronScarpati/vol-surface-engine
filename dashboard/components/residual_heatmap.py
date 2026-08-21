@@ -29,7 +29,7 @@ def render_residual_heatmap(
     df = df.dropna(subset=["residual"])
 
     if df.empty:
-        st.warning("No residuals to display — no valid market IV / fitted IV pairs found.")
+        st.warning("No residuals to display: no valid market IV / fitted IV pairs found.")
         return
 
     # Compute significance threshold (2 sigma of residuals)
@@ -88,7 +88,7 @@ def render_residual_heatmap(
         margin=dict(l=50, r=20, t=30, b=40),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # Significance summary
     n_sig = (df["residual"].abs() > 2 * sigma_resid).sum()

@@ -12,6 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from dashboard.components.helpers import expiry_line_colors
 from src.arbitrage import (
     ArbitrageDiagnostics,
     durrleman_condition,
@@ -33,7 +34,15 @@ def render_arbitrage_diagnostics(
     if is_arb_free:
         st.success("No arbitrage violations detected (butterfly + calendar)")
     else:
-        st.error("Arbitrage violations detected")
+        failing = []
+        if not all_butterfly:
+            failing.append("butterfly")
+        if not diagnostics.calendar_free:
+            failing.append("calendar spread")
+        st.error(
+            f"Violations flagged by the {' and '.join(failing)} check"
+            f"{'s' if len(failing) > 1 else ''}; details in the matching tab below"
+        )
 
     tab_butterfly, tab_calendar = st.tabs(["Butterfly (Durrleman)", "Calendar Spread"])
 
@@ -55,7 +64,9 @@ def _render_butterfly(
 
     fig = go.Figure()
 
-    for _, row in slice_params.iterrows():
+    g_curves: list[np.ndarray] = []
+    line_colors = expiry_line_colors(len(slice_params))
+    for trace_i, (_, row) in enumerate(slice_params.iterrows()):
         params = SVIParams(
             a=row["a"],
             b=row["b"],
@@ -64,6 +75,7 @@ def _render_butterfly(
             sigma=row["sigma"],
         )
         g = durrleman_condition(k_grid, params)
+        g_curves.append(np.asarray(g))
         dte = round(row["T"] * 365.25)
         label = str(row.get("expiry", f"T={row['T']:.4f}"))
         is_free = diagnostics.butterfly_free.get(label, True)
@@ -74,7 +86,7 @@ def _render_butterfly(
                 y=g,
                 mode="lines",
                 name=f"{dte}d {'✓' if is_free else '✗'}",
-                line=dict(width=1.5),
+                line=dict(width=2, color=line_colors[trace_i]),
             )
         )
 
@@ -88,15 +100,33 @@ def _render_butterfly(
         annotation_position="bottom right",
     )
 
+    # A fitted wing with near-zero total variance sends g(k) to
+    # astronomical values; clamp the display to a robust range so the
+    # curves near zero stay readable. Exact minima are in the table.
+    g_all = np.concatenate(g_curves) if g_curves else np.array([0.0])
+    finite = g_all[np.isfinite(g_all)]
+    sane = finite[np.abs(finite) < 100]
+    if sane.size:
+        y_hi = float(np.percentile(sane, 99)) * 1.1
+        y_lo = min(-0.05, float(sane.min()) * 1.3)
+    else:
+        y_hi, y_lo = 3.0, -0.5
+
     fig.update_layout(
         xaxis_title="Log-moneyness k",
         yaxis_title="g(k)   [Durrleman]",
+        yaxis_range=[y_lo, y_hi],
         height=400,
         margin=dict(l=50, r=20, t=30, b=40),
         legend=dict(font=dict(size=10)),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
+    st.caption(
+        "The vertical axis is clamped to a readable range; g(k) can grow "
+        "very large where a fitted wing approaches zero total variance. "
+        "Exact per-slice minima are in the table below."
+    )
 
     # Summary table
     rows = []
@@ -122,13 +152,13 @@ def _render_butterfly(
 
         rows.append(
             {
-                "Slice": label,
+                "Slice": str(label)[:10],
                 "Status": "PASS" if is_free else "FAIL",
                 "min g(k)": f"{min_g_val:.6f}",
             }
         )
     if rows:
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
 
 def _render_calendar(
@@ -143,12 +173,12 @@ def _render_calendar(
         st.error(f"{n_violations} calendar-spread violation(s) detected")
         if diagnostics.calendar_violation_expiries:
             violation_data = [
-                {"Short expiry": short, "Long expiry": long}
+                {"Short expiry": str(short)[:10], "Long expiry": str(long)[:10]}
                 for short, long in diagnostics.calendar_violation_expiries
             ]
             st.dataframe(
                 pd.DataFrame(violation_data),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
             )
 
@@ -157,7 +187,8 @@ def _render_calendar(
     sorted_slices = slice_params.sort_values("T")
 
     fig = go.Figure()
-    for k_val in k_probes:
+    probe_colors = expiry_line_colors(len(k_probes))
+    for probe_i, k_val in enumerate(k_probes):
         w_vals = []
         T_vals = []
         for _, row in sorted_slices.iterrows():
@@ -171,8 +202,8 @@ def _render_calendar(
                 y=w_vals,
                 mode="lines+markers",
                 name=f"k={k_val:.2f}",
-                line=dict(width=2),
-                marker=dict(size=5),
+                line=dict(width=2, color=probe_colors[probe_i]),
+                marker=dict(size=6, color=probe_colors[probe_i]),
             )
         )
 
@@ -183,7 +214,7 @@ def _render_calendar(
         margin=dict(l=50, r=20, t=30, b=40),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     st.caption(
         "Total variance must be non-decreasing in T for each fixed k "
         "to prevent calendar-spread arbitrage."

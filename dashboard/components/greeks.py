@@ -1,5 +1,5 @@
 """
-Greeks panel — Delta, Gamma, Vega surfaces from the fitted SVI surface.
+Greeks panel: Delta, Gamma, Vega surfaces from the fitted SVI surface.
 
 A common reason to construct a volatility surface is to price and hedge
 options.  This panel computes Black-Scholes Greeks using the fitted IV at
@@ -15,6 +15,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from scipy.stats import norm
 
+from dashboard.components.helpers import BLUES_SCALE, expiry_line_colors
 from src.svi_fitter import svi_total_variance
 
 
@@ -98,10 +99,10 @@ def render_greeks(
 
     # Colorscale and formatting
     colorscale_map = {
-        "delta": "Viridis",
-        "gamma": "Hot",
-        "vega": "Cividis",
-        "theta": "RdBu_r",
+        "delta": BLUES_SCALE,
+        "gamma": BLUES_SCALE,
+        "vega": BLUES_SCALE,
+        "theta": BLUES_SCALE,
     }
     fmt_map = {
         "delta": ".3f",
@@ -144,12 +145,13 @@ def render_greeks(
         height=550,
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # Per-slice greek profile
-    st.markdown("**Cross-sectional view** — Greeks vs strike for each expiry slice:")
+    st.markdown("**Cross-sectional view.** Greeks vs strike for each expiry slice:")
 
     fig2 = go.Figure()
+    line_colors = expiry_line_colors(len(sorted_sp))
     for i, (_, row) in enumerate(sorted_sp.iterrows()):
         dte = round(row["T"] * 365.25)
         fig2.add_trace(
@@ -158,7 +160,7 @@ def render_greeks(
                 y=greek_grid[i, :],
                 mode="lines",
                 name=f"{dte}d",
-                line=dict(width=1.5),
+                line=dict(width=2, color=line_colors[i]),
             )
         )
 
@@ -179,4 +181,4 @@ def render_greeks(
         annotation_text="ATM",
     )
 
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")

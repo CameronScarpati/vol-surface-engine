@@ -17,6 +17,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from dashboard.components.helpers import BLUES_SCALE
 from src.svi_fitter import svi_total_variance
 
 
@@ -28,22 +29,39 @@ def _build_fitted_surface(
     strike_lo: float,
     strike_hi: float,
     n_strike: int = 80,
+    band_by_T: dict[float, tuple[float, float]] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Build a regular grid of SVI-fitted IV values.
+
+    When *band_by_T* is given, each slice is evaluated only inside its own
+    quoted strike band (NaN elsewhere), so the surface never shows a fit
+    extrapolated far beyond the strikes that expiry actually quotes.
 
     Returns
     -------
     strikes_grid, T_grid, fitted_iv_grid : 2-D arrays
     """
     T_vals = np.sort(slice_params["T"].unique())
-    strikes = np.linspace(strike_lo, strike_hi, n_strike)
 
-    strikes_grid = np.tile(strikes, (len(T_vals), 1))
+    strikes_grid = np.empty((len(T_vals), n_strike))
     T_grid = np.tile(T_vals[:, None], (1, n_strike))
     fitted_iv_grid = np.full_like(strikes_grid, np.nan)
 
     for i, T in enumerate(T_vals):
         sp_row = slice_params[np.isclose(slice_params["T"], T, atol=1e-6)]
+
+        # Each slice gets its own strike axis spanning only its quoted
+        # band, so short maturities are not extrapolated into wings they
+        # never quoted and the surface edge stays smooth.
+        row_lo, row_hi = strike_lo, strike_hi
+        if band_by_T is not None:
+            for band_T, band_range in band_by_T.items():
+                if abs(band_T - T) < 1e-6:
+                    row_lo, row_hi = band_range
+                    break
+        strikes = np.linspace(row_lo, row_hi, n_strike)
+        strikes_grid[i, :] = strikes
+
         if sp_row.empty:
             continue
         sp = sp_row.iloc[0]
@@ -51,8 +69,7 @@ def _build_fitted_surface(
         F = spot * np.exp((risk_free - div_yield) * T)
         k = np.log(strikes / F)
         w = svi_total_variance(k, sp["a"], sp["b"], sp["rho"], sp["m"], sp["sigma"])
-        iv_vals = np.sqrt(np.maximum(w, 0.0) / T)
-        fitted_iv_grid[i, :] = iv_vals
+        fitted_iv_grid[i, :] = np.sqrt(np.maximum(w, 0.0) / T)
 
     return strikes_grid, T_grid, fitted_iv_grid
 
@@ -149,6 +166,10 @@ def render_surface_3d(
     strike_hi = min(iv_strikes.max() * 1.05, F_mid * np.exp(k_max))
 
     # Build the fitted surface grid
+    band_by_T = {
+        float(t): (float(g["strike"].min()), float(g["strike"].max()))
+        for t, g in valid_iv_chain.groupby("T")
+    }
     strikes_grid, T_grid, fit_iv = _build_fitted_surface(
         slice_params,
         spot,
@@ -156,6 +177,7 @@ def render_surface_3d(
         div_yield,
         strike_lo,
         strike_hi,
+        band_by_T=band_by_T,
     )
 
     # Adaptive IV cap for the fitted surface to prevent extreme wing artifacts
@@ -220,7 +242,7 @@ def _render_fitted_surface(
                 x=strikes_grid,
                 y=T_grid * 365.25,
                 z=fit_iv,
-                colorscale="Viridis",
+                colorscale=BLUES_SCALE,
                 colorbar=dict(title="IV", tickformat=".3f"),
                 cmin=z_range[0],
                 cmax=z_range[1],
@@ -242,7 +264,7 @@ def _render_fitted_surface(
         margin=dict(l=0, r=0, t=30, b=0),
         height=600,
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def _render_market_iv(
@@ -279,7 +301,7 @@ def _render_market_iv(
             x=strikes_grid,
             y=T_grid * 365.25,
             z=fit_iv,
-            colorscale="Viridis",
+            colorscale=BLUES_SCALE,
             opacity=0.4,
             showscale=False,
             name="SVI Fit",
@@ -302,7 +324,7 @@ def _render_market_iv(
                 marker=dict(
                     size=4,
                     color=mkt_ivs,
-                    colorscale="Viridis",
+                    colorscale=BLUES_SCALE,
                     colorbar=dict(title="Market IV", tickformat=".3f"),
                     cmin=z_range[0],
                     cmax=z_range[1],
@@ -329,7 +351,7 @@ def _render_market_iv(
         margin=dict(l=0, r=0, t=30, b=0),
         height=600,
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     if len(mkt_ivs) > 0:
         st.caption(
@@ -411,7 +433,7 @@ def _render_residual(
         margin=dict(l=0, r=0, t=30, b=0),
         height=600,
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     n_pos = (resid_valid > 0).sum()
     n_neg = (resid_valid < 0).sum()

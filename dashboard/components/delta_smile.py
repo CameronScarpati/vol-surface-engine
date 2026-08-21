@@ -1,5 +1,5 @@
 """
-Delta-space smile — implied volatility plotted against Black-Scholes delta.
+Delta-space smile: implied volatility plotted against Black-Scholes delta.
 
 Volatility is often quoted in delta-space (e.g. "25-delta put vol") rather than
 strike-space.  This view normalises across expiries so skew and convexity are
@@ -16,6 +16,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from scipy.stats import norm
 
+from dashboard.components.helpers import expiry_line_colors
 from src.svi_fitter import svi_total_variance
 
 
@@ -51,7 +52,8 @@ def render_delta_smile(
 
     fig = go.Figure()
 
-    for _, row in sorted_sp.iterrows():
+    line_colors = expiry_line_colors(len(sorted_sp))
+    for trace_i, (_, row) in enumerate(sorted_sp.iterrows()):
         T = row["T"]
         dte = round(T * 365.25)
         F = spot * np.exp((risk_free - div_yield) * T)
@@ -77,7 +79,7 @@ def render_delta_smile(
                 y=iv[mask],
                 mode="lines",
                 name=f"{dte}d",
-                line=dict(width=2),
+                line=dict(width=2, color=line_colors[trace_i]),
                 hovertemplate=("Delta: %{x:.2f}<br>IV: %{y:.2%}<extra></extra>"),
             )
         )
@@ -104,7 +106,7 @@ def render_delta_smile(
         legend=dict(font=dict(size=10)),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # Skew metrics table
     st.markdown("**Skew & Convexity Metrics**")
@@ -158,7 +160,7 @@ def render_delta_smile(
     if skew_rows:
         st.dataframe(
             pd.DataFrame(skew_rows),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
         st.caption(

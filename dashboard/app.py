@@ -1,5 +1,5 @@
 """
-Streamlit Dashboard — Volatility Surface Engine
+Streamlit dashboard for the Volatility Surface Engine
 
 Run with:
     streamlit run dashboard/app.py
@@ -17,7 +17,7 @@ import logging
 import sys
 from pathlib import Path
 
-if sys.version_info < (3, 10):  # noqa: UP036 — intentional guard for clear error message
+if sys.version_info < (3, 10):  # noqa: UP036 - intentional guard for clear error message
     raise RuntimeError(
         f"Python ≥ 3.10 is required (running {sys.version}). "
         "Please recreate your virtualenv with Python 3.10+."
@@ -46,7 +46,6 @@ from dashboard.components import (  # noqa: E402
 )
 from src.iv_engine import bs_price  # noqa: E402
 from src.surface import VolSurface, build_surface  # noqa: E402
-from src.svi_fitter import SVIParams, svi_total_variance  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -85,12 +84,12 @@ st.sidebar.markdown("---")
 
 st.sidebar.markdown("### Pipeline")
 st.sidebar.markdown(
-    "1. **Data** — Options chain ingestion & cleaning\n"
-    "2. **IV Engine** — Newton-Raphson + Brent fallback\n"
-    "3. **SVI Fit** — Multi-start L-BFGS-B calibration\n"
-    "4. **Arbitrage** — Durrleman + calendar diagnostics\n"
-    "5. **Greeks** — BS sensitivities from fitted surface\n"
-    "6. **Local Vol** — Dupire's formula"
+    "1. **Data**: options chain ingestion and cleaning\n"
+    "2. **IV engine**: Newton-Raphson with Brent fallback\n"
+    "3. **SVI fit**: multi-start L-BFGS-B calibration\n"
+    "4. **Arbitrage checks**: Durrleman and calendar diagnostics\n"
+    "5. **Greeks**: BS sensitivities from the fitted surface\n"
+    "6. **Local vol**: Dupire's formula"
 )
 
 st.sidebar.markdown("---")
@@ -107,60 +106,46 @@ st.sidebar.markdown(
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@st.cache_data(show_spinner="Generating synthetic surface …")
+@st.cache_data(show_spinner="Generating synthetic surface \u2026")
 def _generate_placeholder() -> VolSurface:
-    """Build a synthetic volatility surface from known SVI parameters.
+    """Build a synthetic volatility surface from a known smile formula.
 
-    Uses realistic SPY-like parameters to produce a surface that looks
-    plausible without requiring network access.
+    Mirrors scripts/generate_synthetic_data.py: an ATM term structure with
+    short-dated contango, a maturity-dependent negative skew, and a smile
+    term. That formula produces realistic SPY-like levels (roughly 19%
+    ATM at 7 days easing to 16% at one year) and is known to admit clean
+    SVI fits, so the demo surface looks like the real pipeline output
+    without any network dependency.
     """
     spot = 585.0
     r = 0.0435
     q = 0.013
 
-    # Realistic expiry grid (7d to 365d)
     T_values = np.array([7, 14, 30, 60, 90, 120, 180, 270, 365]) / 365.25
 
-    # SVI params that produce a realistic SPY smile per expiry
-    # (steeper skew for short expiries, flattening out longer term)
-    svi_configs = [
-        SVIParams(a=0.005, b=0.20, rho=-0.70, m=0.00, sigma=0.10),  # 7d
-        SVIParams(a=0.008, b=0.18, rho=-0.65, m=0.00, sigma=0.12),  # 14d
-        SVIParams(a=0.015, b=0.15, rho=-0.55, m=-0.01, sigma=0.14),  # 30d
-        SVIParams(a=0.025, b=0.12, rho=-0.50, m=-0.01, sigma=0.16),  # 60d
-        SVIParams(a=0.035, b=0.10, rho=-0.45, m=-0.02, sigma=0.18),  # 90d
-        SVIParams(a=0.045, b=0.09, rho=-0.42, m=-0.02, sigma=0.20),  # 120d
-        SVIParams(a=0.060, b=0.08, rho=-0.38, m=-0.02, sigma=0.22),  # 180d
-        SVIParams(a=0.085, b=0.07, rho=-0.35, m=-0.02, sigma=0.24),  # 270d
-        SVIParams(a=0.110, b=0.06, rho=-0.32, m=-0.02, sigma=0.26),  # 365d
-    ]
+    def synthetic_iv(k: np.ndarray, T: float) -> np.ndarray:
+        atm = 0.16 + 0.03 * np.exp(-2.0 * T)
+        skew = -0.12 * (1.0 + 0.5 / (T + 0.05)) * k
+        smile = 0.15 * k**2
+        return np.clip(atm + skew + smile, 0.05, 1.5)
 
     rng = np.random.default_rng(42)
     rows: list[dict] = []
     now = pd.Timestamp.now().normalize()  # midnight today, consistent per expiry
 
-    for T, svi in zip(T_values, svi_configs, strict=True):
+    for T in T_values:
         expiry_date = now + pd.Timedelta(days=int(T * 365.25))
-        F = spot * np.exp((r - q) * T)
-        # Generate strikes around ATM
-        moneyness_range = min(0.15 + T * 0.3, 0.45)
+        # Quote strikes inside a maturity-appropriate band
+        moneyness_range = min(0.05 + 0.25 * np.sqrt(T), 0.35)
         n_strikes = max(15, int(40 * np.sqrt(T)))
         k_values = np.linspace(-moneyness_range, moneyness_range, n_strikes)
-        strikes = F * np.exp(k_values)
+        strikes = spot * np.exp(k_values)
 
-        w_true = svi_total_variance(
-            k_values,
-            svi.a,
-            svi.b,
-            svi.rho,
-            svi.m,
-            svi.sigma,
-        )
-        iv_true = np.sqrt(np.maximum(w_true, 1e-8) / T)
+        iv_true = synthetic_iv(k_values, float(T))
 
         for K, iv in zip(strikes, iv_true, strict=True):
-            # Add realistic noise (wider for short expiry)
-            noise = rng.normal(0, 0.002 + 0.001 / np.sqrt(T))
+            # Small quote noise, slightly wider for short expiries
+            noise = rng.normal(0, 0.0015 + 0.0008 / np.sqrt(T))
             iv_noisy = max(iv + noise, 0.03)
 
             for otype in ["call", "put"]:
@@ -248,7 +233,7 @@ def main() -> None:
     if not sp.empty:
         avg_r2 = sp["r_squared"].mean()
         avg_rmse = sp["rmse"].mean()
-        col5.metric("Avg R²", f"{avg_r2:.6f}")
+        col5.metric("Avg R²", f"{avg_r2:.4f}")
         col6.metric("Avg RMSE", f"{avg_rmse:.2e}")
 
     st.markdown("---")
@@ -270,7 +255,7 @@ def main() -> None:
         left, right = st.columns([3, 2])
         with left:
             st.caption(
-                "**3-D Volatility Surface** — Implied volatility plotted against "
+                "**3-D volatility surface.** Implied volatility plotted against "
                 "strike (moneyness) and time to expiry. The surface is built by "
                 "fitting a Stochastic Volatility Inspired (SVI) model to each "
                 "expiry slice, then interpolating across tenors. A smooth, "
@@ -280,7 +265,7 @@ def main() -> None:
 
         with right:
             st.caption(
-                "**Volatility Smile per Expiry** — Each curve shows the SVI fit "
+                "**Volatility smile per expiry.** Each curve shows the SVI fit "
                 "for a single expiry overlaid on market-observed IVs. The "
                 "characteristic 'smile' or 'skew' shape reflects how out-of-the-"
                 "money puts trade at higher implied vols than ATM options, driven "
@@ -291,9 +276,9 @@ def main() -> None:
         st.markdown("---")
 
         st.caption(
-            "**Residual Heatmap** — Difference between market-observed IV and "
+            "**Residual heatmap.** Difference between market-observed IV and "
             "the SVI model fit, mapped across strike and expiry. Large residuals "
-            "highlight options where the model deviates from the market — "
+            "highlight options where the model deviates from the market: "
             "potential mispricings or areas where the SVI parameterization "
             "struggles (e.g. deep OTM wings, illiquid strikes)."
         )
@@ -304,7 +289,7 @@ def main() -> None:
         left2, right2 = st.columns([3, 2])
         with left2:
             st.caption(
-                "**Delta-Space Smile** — IV plotted against Black-Scholes "
+                "**Delta-space smile.** IV plotted against Black-Scholes "
                 "delta, a standard delta-space quoting convention. "
                 "Normalises across expiries so skew and convexity are directly "
                 "comparable. The 25Δ risk-reversal and butterfly shown here are "
@@ -314,7 +299,7 @@ def main() -> None:
             render_delta_smile(chain, sp, surface.spot, surface.risk_free, surface.div_yield)
         with right2:
             st.caption(
-                "**Mispricing Table** — Options with the largest absolute "
+                "**Mispricing table.** Options with the largest absolute "
                 "residuals between market IV and the SVI fit. These are the "
                 "options that diverge most from the SVI fit, typically "
                 "indicating data quality issues or strikes the model fits "
@@ -331,7 +316,7 @@ def main() -> None:
     # ── Tab 3: Greeks ────────────────────────────────────────────────────
     with tab_greeks:
         st.caption(
-            "**Greeks Surface** — Black-Scholes sensitivities (Δ, Γ, ν, Θ) "
+            "**Greeks surface.** Black-Scholes sensitivities (Δ, Γ, ν, Θ) "
             "computed from the fitted SVI surface across the full (strike, T) "
             "grid. These are the quantities that drive hedging and risk "
             "management once a surface has been fit."
@@ -341,7 +326,7 @@ def main() -> None:
     # ── Tab 4: Local Volatility ──────────────────────────────────────────
     with tab_localvol:
         st.caption(
-            "**Local Volatility (Dupire)** — The unique diffusion coefficient "
+            "**Local volatility (Dupire).** The unique diffusion coefficient "
             "σ_loc(K, T) consistent with the fitted implied volatility surface, "
             "computed via Dupire's formula. Local vol reveals the instantaneous "
             "volatility structure that the market prices imply, bridging the "
@@ -352,7 +337,7 @@ def main() -> None:
     # ── Tab 5: Arbitrage Diagnostics ─────────────────────────────────────
     with tab_arb:
         st.caption(
-            "**Arbitrage Diagnostics** — Static no-arbitrage conditions checked "
+            "**Arbitrage diagnostics.** Static no-arbitrage conditions checked "
             "across the surface. *Butterfly arbitrage* is checked via the "
             "Durrleman (2005) condition, which requires the risk-neutral density "
             "to be non-negative at every strike. *Calendar-spread arbitrage* "
@@ -363,7 +348,7 @@ def main() -> None:
     # ── Tab 6: Term Structure ────────────────────────────────────────────
     with tab_term:
         st.caption(
-            "**ATM Term Structure** — At-the-money implied volatility as a "
+            "**ATM term structure.** At-the-money implied volatility as a "
             "function of time to expiry. An upward-sloping curve is typical "
             "in calm markets (mean-reversion expectation), while inversion "
             "signals near-term event risk or elevated short-dated demand."

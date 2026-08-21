@@ -1,5 +1,5 @@
 """
-Local Volatility panel — Dupire's formula applied to the fitted SVI surface.
+Local Volatility panel: Dupire's formula applied to the fitted SVI surface.
 
 Local volatility σ_loc(K, T) is the unique diffusion coefficient consistent
 with the observed European option prices.  Computing it from the SVI fit
@@ -25,6 +25,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from scipy.ndimage import gaussian_filter
 
+from dashboard.components.helpers import BLUES_SCALE, expiry_line_colors
 from src.svi_fitter import (
     svi_first_derivative,
     svi_second_derivative,
@@ -214,7 +215,7 @@ def render_local_vol(
                     x=strike_grid,
                     y=T_grid * 365.25,
                     z=local_vol,
-                    colorscale="Inferno",
+                    colorscale=BLUES_SCALE,
                     cmin=0,
                     cmax=z_max,
                     colorbar=dict(title="σ_loc", tickformat=".0%"),
@@ -237,13 +238,14 @@ def render_local_vol(
             height=550,
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col_slice:
         fig2 = go.Figure()
         n_show = min(8, len(T_vals))
         indices = np.linspace(0, len(T_vals) - 1, n_show, dtype=int)
-        for i in indices:
+        line_colors = expiry_line_colors(len(indices))
+        for color_i, i in enumerate(indices):
             dte = round(T_vals[i] * 365.25)
             valid = np.isfinite(local_vol[i, :])
             if valid.any():
@@ -253,7 +255,7 @@ def render_local_vol(
                         y=local_vol[i, valid],
                         mode="lines",
                         name=f"{dte}d",
-                        line=dict(width=1.5),
+                        line=dict(width=2, color=line_colors[color_i]),
                     )
                 )
 
@@ -275,4 +277,4 @@ def render_local_vol(
             legend=dict(font=dict(size=10)),
         )
 
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width="stretch")
