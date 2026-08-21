@@ -10,25 +10,15 @@ A learning project: an end-to-end volatility surface tool that fetches live equi
 
 ## What It Does
 
-```
-Live Market Data (yfinance)
-        │
-        ▼
-┌─────────────────────┐     ┌───────────────────────┐     ┌──────────────────────┐
-│   DATA PIPELINE     │     │   NUMERICAL ENGINE    │     │   VISUALIZATION      │
-│                     │     │                       │     │                      │
-│ • Fetch options     │────▶│ • Newton-Raphson IV   │────▶│ • 3D IV surface      │
-│   chains + spot     │     │   extraction with     │     │ • Per-expiry smiles  │
-│ • FRED risk-free    │     │   Brent fallback      │     │   + bid-ask bands    │
-│   rate (3M T-bill)  │     │ • SVI calibration     │     │ • Greeks surfaces    │
-│ • Dividend yield    │     │   (multi-start        │     │   (Δ, Γ, ν, Θ)       │
-│   estimation        │     │   L-BFGS-B, 8 seeds)  │     │ • Dupire local vol   │
-│ • Adaptive filters: │     │ • Durrleman butterfly │     │ • Residual heatmap   │
-│   volume, moneyness,│     │   diagnostics         │     │ • Arbitrage          │
-│   bid-ask, MAD      │     │ • Calendar-spread     │     │   diagnostics        │
-│   outlier removal   │     │   monotonicity        │     │ • Delta-space smile  │
-└─────────────────────┘     └───────────────────────┘     │ • Term structure     │
-                                                          └──────────────────────┘
+```mermaid
+flowchart LR
+    data["<b>Market data</b><br/>yfinance options chains<br/>FRED 3M T-bill rate<br/>dividend yield estimate"]
+    clean["<b>Data pipeline</b><br/>volume and OI filters<br/>moneyness bounds<br/>bid-ask validation<br/>MAD outlier removal"]
+    iv["<b>IV extraction</b><br/>Newton-Raphson<br/>Brent fallback"]
+    svi["<b>SVI calibration</b><br/>multi-start L-BFGS-B<br/>per expiry slice"]
+    arb["<b>Arbitrage checks</b><br/>Durrleman butterfly<br/>calendar monotonicity"]
+    dash["<b>Dashboard</b><br/>3D surface and smiles<br/>Greeks and local vol<br/>residuals and diagnostics"]
+    data --> clean --> iv --> svi --> arb --> dash
 ```
 
 ---
