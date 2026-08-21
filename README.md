@@ -1,13 +1,10 @@
 # Volatility Surface Engine
 
 [![CI](https://github.com/CameronScarpati/vol-surface-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/CameronScarpati/vol-surface-engine/actions/workflows/ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 A learning project: an end-to-end volatility surface tool that fetches live equity options data, extracts implied volatility via Newton-Raphson root-finding, calibrates per-expiry SVI parameterizations (Gatheral 2004), checks no-arbitrage conditions (Durrleman's butterfly condition and calendar-spread monotonicity) and reports violations as diagnostics, and exposes the full surface, including Dupire local vol, Greeks, and residual diagnostics, through an interactive Streamlit dashboard.
 
-**~5,100 lines of Python** across a modular numerical engine (1,650 LOC), interactive dashboard (2,050 LOC), and a test suite (1,432 LOC / 111 tests). Built from scratch with a focus on numerical robustness and clean architecture. It is exploratory rather than production pricing infrastructure; see [Scope and Limitations](#scope-and-limitations).
+**5,700+ lines of Python** across a modular numerical engine (1,680 lines), interactive dashboard (2,189 lines), and a test suite (1,890 lines, 160 tests). Built from scratch with a focus on numerical robustness and clean architecture. It is exploratory rather than production pricing infrastructure; see [Scope and Limitations](#scope-and-limitations).
 
 ---
 
@@ -36,6 +33,30 @@ Live Market Data (yfinance)
 
 ---
 
+## Results
+
+The figures below come from running the full pipeline on the bundled synthetic options chain (`data/spy_options.parquet`), so anyone can reproduce them offline with one command:
+
+```bash
+python scripts/generate_readme_figures.py
+```
+
+The chain is generated from known smile and term-structure formulas with a fixed seed, which makes it a controlled testbed: the fits below recover structure that is known to be there, and the numbers say nothing about fit quality on live market data.
+
+![Scatter of extracted implied volatilities with fitted SVI curves for the 7, 30, 180, and 365 day expiries. Short-dated smiles are steep and convex; long-dated smiles flatten out, and each fitted curve tracks its scatter closely.](docs/smile_fits.png)
+
+*Per-expiry SVI fits over Newton-Raphson extracted implied volatilities. Average R² across the 8 slices is 0.995 on this chain.*
+
+![Heatmap of the fitted implied volatility surface over log-moneyness and days to expiry. Volatility is highest for short-dated wings, and the at-the-money level decays smoothly with maturity.](docs/surface_heatmap.png)
+
+*The fitted surface, interpolated linearly in total variance between expiry slices. The color scale clips the extreme short-dated wings at the 97th percentile so the smile shape stays visible.*
+
+![Line chart of the Durrleman condition g of k for four fitted slices. All curves stay above zero except the 30 day slice, which dips slightly below zero near k equal to 0.3, where the butterfly check flags a violation.](docs/durrleman_diagnostic.png)
+
+*The butterfly diagnostic in action: g(k) for the 30-day slice dips below zero, and the check reports that violation rather than repairing the fit. On this synthetic chain the diagnostics flag butterfly violations on the four shortest slices and calendar-ordering violations on several adjacent pairs.*
+
+---
+
 ## Technical Highlights
 
 | Component | Implementation | Why It Matters |
@@ -45,9 +66,9 @@ Live Market Data (yfinance)
 | **Arbitrage Diagnostics** | Durrleman butterfly condition $g(k) \geq 0$; calendar-spread $\partial w / \partial T \geq 0$ | Detects static-arbitrage violations and flags them; a penalized arbitrage-aware refit is implemented but is not enabled in the default build (the surface is arbitrage-checked, not guaranteed arbitrage-free) |
 | **Local Volatility** | Dupire (1994) via analytic SVI derivatives + finite-difference $\partial w / \partial T$; Gaussian-smoothed output | Extracts instantaneous diffusion coefficient implied by the market |
 | **Greeks** | Black-Scholes $\Delta$, $\Gamma$, $\nu$, $\Theta$ across full (strike, $T$) grid | Continuous Greeks surfaces rather than per-contract point estimates |
-| **Data Pipeline** | Adaptive multi-stage filtering: volume/OI, moneyness bounds, bid-ask validation, MAD-based outlier removal | Handles noisy real-world data — wide spreads flagged, stale quotes removed |
+| **Data Pipeline** | Adaptive multi-stage filtering: volume/OI, moneyness bounds, bid-ask validation, MAD-based outlier removal | Handles noisy real-world data: wide spreads flagged, stale quotes removed |
 | **Dashboard** | 8 interactive Plotly panels in Streamlit; live + synthetic modes | Full analytical toolkit: 3D surface, smile slices, delta-space, residual heatmap, arbitrage diagnostics |
-| **Testing** | 111 tests (pytest); unit tests per module + end-to-end integration; CI on Python 3.10–3.12 | Round-trip IV recovery from synthetic BS prices validates the IV engine (price to IV and back) |
+| **Testing** | 160 tests (pytest); unit tests per module, golden values pinned to external references, end-to-end integration; CI on Python 3.10–3.12 | Round-trip IV recovery plus values computed outside the codebase (textbook Black-Scholes cases, high-precision recomputation, a known arbitrage-violating SVI slice from the literature) |
 
 ---
 
@@ -80,11 +101,11 @@ Five parameters per slice: $a$ (variance level), $b$ (wing slope), $\rho$ (skew)
 
 The surface is checked for static arbitrage via:
 
-**Butterfly arbitrage** — the Durrleman (2005) condition requires the risk-neutral density to be non-negative:
+**Butterfly arbitrage.** The Durrleman (2005) condition requires the risk-neutral density to be non-negative:
 
 $$g(k) = \left(1 - \frac{k w'}{2w}\right)^2 - \frac{(w')^2}{4}\left(\frac{1}{w} + \frac{1}{4}\right) + \frac{w''}{2} \geq 0 \quad \forall k$$
 
-**Calendar-spread arbitrage** — total variance must be non-decreasing in time: $\partial w / \partial T \geq 0$.
+**Calendar-spread arbitrage.** Total variance must be non-decreasing in time: $\partial w / \partial T \geq 0$.
 
 A penalized refit that escalates $\lambda$ to push $g(k) \geq 0$ is implemented (`fit_svi_arbitrage_free` in `arbitrage.py`), but the default `build_surface` pipeline only detects and reports violations through `generate_diagnostics`; it does not invoke the penalized refit. The surface is therefore arbitrage-checked, not guaranteed arbitrage-free.
 </details>
@@ -92,7 +113,7 @@ A penalized refit that escalates $\lambda$ to push $g(k) \geq 0$ is implemented 
 <details>
 <summary><strong>Local Volatility (Dupire)</strong></summary>
 
-The fitted SVI surface is used to extract Dupire (1994) local volatility — the unique diffusion coefficient consistent with observed European option prices:
+The fitted SVI surface is used to extract Dupire (1994) local volatility, the unique diffusion coefficient consistent with observed European option prices:
 
 $$\sigma_{\text{loc}}^2(K,T) = \frac{\partial w / \partial T}{1 - \frac{k w'}{w} + \frac{w''}{2} - \frac{(w')^2}{4}\left(\frac{1}{w} + \frac{1}{4}\right)}$$
 
@@ -137,10 +158,14 @@ python data/download.py --symbol AAPL
 ```
 vol-surface-engine/
 ├── .github/
-│   └── workflows/ci.yml           # GitHub Actions CI (lint + test matrix)
+│   └── workflows/ci.yml           # GitHub Actions CI (lint, format, types + test matrix)
 ├── data/
 │   ├── download.py                # CLI: fetch real options data
-│   └── spy_options.parquet        # Cached options chain
+│   └── spy_options.parquet        # Bundled synthetic chain (also the live-download cache path)
+├── docs/
+│   ├── smile_fits.png             # README figure: per-expiry SVI fits
+│   ├── surface_heatmap.png        # README figure: fitted surface
+│   └── durrleman_diagnostic.png   # README figure: butterfly diagnostic
 ├── src/
 │   ├── __init__.py                # Public API: VolSurface, build_surface, …
 │   ├── data_loader.py             # Options chain fetching + cleaning
@@ -162,16 +187,16 @@ vol-surface-engine/
 │       └── term_structure.py      # ATM term structure + mispricing table
 ├── scripts/
 │   ├── generate_synthetic_data.py # Synthetic data generator
+│   ├── generate_readme_figures.py # Renders the README figures offline
 │   └── plot_iv_smiles.py          # Quick IV smile visualization
 ├── tests/
 │   ├── conftest.py                # Shared fixtures + synthetic data helpers
 │   ├── test_data_loader.py        # Data layer unit tests
-│   ├── test_iv_engine.py          # IV engine unit tests (29 tests)
+│   ├── test_iv_engine.py          # IV engine unit tests
 │   ├── test_svi_fitter.py         # SVI fitter unit tests
 │   ├── test_arbitrage.py          # Arbitrage diagnostics unit tests
-│   └── test_integration.py        # End-to-end pipeline tests (28 tests)
-├── docs/
-│   └── screenshot.png             # Dashboard screenshot
+│   ├── test_golden_values.py      # Golden values pinned to external references
+│   └── test_integration.py        # End-to-end pipeline tests
 ├── LICENSE
 ├── pyproject.toml
 ├── requirements.txt
@@ -187,8 +212,8 @@ vol-surface-engine/
 | **Numerical Engine** | Python, NumPy, SciPy (L-BFGS-B, Brent root-finding), Pandas |
 | **Visualization** | Plotly (3D surfaces, interactive charts), Streamlit |
 | **Market Data** | yfinance (options chains, spot prices), FRED API (risk-free rate) |
-| **Testing & CI** | pytest (111 tests), GitHub Actions (Python 3.10–3.12 matrix) |
-| **Code Quality** | Ruff (linting + formatting), pyproject.toml configuration |
+| **Testing & CI** | pytest (160 tests), GitHub Actions (Python 3.10–3.12 matrix) |
+| **Code Quality** | Ruff (linting + formatting), mypy (type checking), pyproject.toml configuration |
 
 ---
 
@@ -198,7 +223,7 @@ This is a personal learning project for working through the mechanics of volatil
 
 - **Arbitrage is checked, not enforced.** The default `build_surface` pipeline fits SVI per slice and then runs `generate_diagnostics` to detect butterfly and calendar-spread violations. A penalized arbitrage-aware refit (`fit_svi_arbitrage_free`) exists but is not wired into the default build, so the surface is arbitrage-checked, not guaranteed arbitrage-free.
 - **Accuracy numbers are on synthetic data.** The reported fit quality (R² and RMSE) comes from round-trip tests on synthetic Black-Scholes prices. RMSE is measured in total-variance space, not implied-vol points. Live yfinance chains are noisier, and fit quality on real data varies with liquidity and quote staleness.
-- **Round-trip test scope.** The integration round-trip validates the IV engine (price to IV and back). It does not end-to-end validate SVI calibration, interpolation, Greeks, or local vol against an independent ground truth.
+- **Test scope.** The integration round-trip validates the IV engine (price to IV and back), and the golden-value suite pins module-level results (Black-Scholes prices, SVI values, Durrleman diagnostics) against references computed outside the codebase. There is still no end-to-end validation of SVI calibration, interpolation, Greeks, or local vol against an independent full-pipeline ground truth.
 - **Approximate delta-space metrics.** The 25-delta risk-reversal and butterfly are computed at fixed log-moneyness anchors, not by solving for exact 25-delta strikes, so they are approximations of the desk convention.
 - **Data dependence.** Live mode depends on yfinance option chains and a FRED risk-free rate; both can be incomplete or delayed, and the dashboard falls back to synthetic data when a fetch fails.
 
@@ -212,3 +237,9 @@ This is a personal learning project for working through the mechanics of volatil
 4. Black, F. & Scholes, M. (1973). *The Pricing of Options and Corporate Liabilities.* Journal of Political Economy.
 5. Brenner, M. & Subrahmanyam, M.G. (1988). *A Simple Formula to Compute the Implied Standard Deviation.* Financial Analysts Journal.
 6. Dupire, B. (1994). *Pricing with a Smile.* Risk Magazine, 7(1), 18-20.
+
+---
+
+## License
+
+MIT. See [LICENSE](LICENSE).
