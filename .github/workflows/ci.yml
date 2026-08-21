@@ -17,11 +17,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt ruff mypy
 
       - name: Lint
-        run: ruff check src/ tests/ dashboard/ scripts/
+        run: ruff check src/ tests/ dashboard/ scripts/ data/
+
+      - name: Format check
+        run: ruff format --check .
+
+      - name: Type check
+        run: mypy src/ tests/ dashboard/ scripts/ data/
 
   test:
     runs-on: ubuntu-latest
