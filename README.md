@@ -4,7 +4,7 @@
 
 A learning project: an end-to-end volatility surface tool that fetches live equity options data, extracts implied volatility via Newton-Raphson root-finding, calibrates per-expiry SVI parameterizations (Gatheral 2004), checks no-arbitrage conditions (Durrleman's butterfly condition and calendar-spread monotonicity) and reports violations as diagnostics, and exposes the full surface, including Dupire local vol, Greeks, and residual diagnostics, through an interactive Streamlit dashboard.
 
-**5,700+ lines of Python** across a modular numerical engine (1,680 lines), interactive dashboard (2,189 lines), and a test suite (1,890 lines, 160 tests). Built from scratch with a focus on numerical robustness and clean architecture. It is exploratory rather than production pricing infrastructure; see [Scope and Limitations](#scope-and-limitations).
+**5,700+ lines of Python** across a modular numerical engine (1,688 lines), interactive dashboard (2,264 lines), and a test suite (1,890 lines, 160 tests). Built from scratch with a focus on numerical robustness and clean architecture. It is exploratory rather than production pricing infrastructure; see [Scope and Limitations](#scope-and-limitations).
 
 ---
 
@@ -52,10 +52,10 @@ The chain is generated from known smile and term-structure formulas with a fixed
 | Component | Implementation | Why It Matters |
 |-----------|---------------|----------------|
 | **IV Extraction** | Newton-Raphson with Brenner-Subrahmanyam seed + Brent fallback; $\varepsilon < 10^{-10}$ | Robust convergence even in low-vega regions where naïve solvers fail |
-| **SVI Calibration** | 5-parameter raw SVI per slice; multi-start L-BFGS-B (8 seeds); OI-weighted objective | Captures smile shape with low total-variance RMSE (< 0.01 on synthetic round-trip data) while avoiding local minima |
+| **SVI Calibration** | 5-parameter raw SVI per slice; multi-start L-BFGS-B (9 starts: 1 heuristic plus 8 random, one RNG with fixed seed 42); OI-weighted objective | Captures smile shape with low total-variance RMSE (< 0.01 on synthetic round-trip data) while avoiding local minima |
 | **Arbitrage Diagnostics** | Durrleman butterfly condition $g(k) \geq 0$; calendar-spread $\partial w / \partial T \geq 0$ | Detects static-arbitrage violations and flags them; a penalized arbitrage-aware refit is implemented but is not enabled in the default build (the surface is arbitrage-checked, not guaranteed arbitrage-free) |
 | **Local Volatility** | Dupire (1994) via analytic SVI derivatives + finite-difference $\partial w / \partial T$; Gaussian-smoothed output | Extracts instantaneous diffusion coefficient implied by the market |
-| **Greeks** | Black-Scholes $\Delta$, $\Gamma$, $\nu$, $\Theta$ across full (strike, $T$) grid | Continuous Greeks surfaces rather than per-contract point estimates |
+| **Greeks** | Black-Scholes $\Delta$, $\Gamma$, $\nu$, $\Theta$ (call convention) on an 80-point strike grid at each fitted expiry slice | Greeks profiles across strike for every fitted expiry, rather than per-contract point estimates |
 | **Data Pipeline** | Adaptive multi-stage filtering: volume/OI, moneyness bounds, bid-ask validation, MAD-based outlier removal | Handles noisy real-world data: wide spreads flagged, stale quotes removed |
 | **Dashboard** | 8 interactive Plotly panels in Streamlit; live + synthetic modes | Full analytical toolkit: 3D surface, smile slices, delta-space, residual heatmap, arbitrage diagnostics |
 | **Testing** | 160 tests (pytest); unit tests per module, golden values pinned to external references, end-to-end integration; CI on Python 3.10–3.12 | Round-trip IV recovery plus values computed outside the codebase (textbook Black-Scholes cases, high-precision recomputation, a known arbitrage-violating SVI slice from the literature) |
@@ -105,7 +105,7 @@ A penalized refit that escalates $\lambda$ to push $g(k) \geq 0$ is implemented 
 
 The fitted SVI surface is used to extract Dupire (1994) local volatility, the unique diffusion coefficient consistent with observed European option prices:
 
-$$\sigma_{\text{loc}}^2(K,T) = \frac{\partial w / \partial T}{1 - \frac{k w'}{w} + \frac{w''}{2} - \frac{(w')^2}{4}\left(\frac{1}{w} + \frac{1}{4}\right)}$$
+$$\sigma_{\text{loc}}^2(K,T) = \frac{\partial w / \partial T}{\left(1 - \frac{k w'}{2w}\right)^2 - \frac{(w')^2}{4}\left(\frac{1}{w} + \frac{1}{4}\right) + \frac{w''}{2}}$$
 
 where the numerator uses finite differences across SVI slices and the denominator uses analytical SVI derivatives.
 </details>
@@ -113,7 +113,7 @@ where the numerator uses finite differences across SVI slices and the denominato
 <details>
 <summary><strong>Greeks & Delta-Space Analysis</strong></summary>
 
-Black-Scholes Greeks ($\Delta$, $\Gamma$, $\nu$, $\Theta$) are computed from the fitted IV surface across the full (strike, $T$) grid. The dashboard includes delta-space smile views with approximate 25$\Delta$ risk-reversal and butterfly metrics (computed at fixed log-moneyness anchors rather than solved exact-delta strikes).
+Black-Scholes Greeks ($\Delta$, $\Gamma$, $\nu$, $\Theta$, call convention) are computed from the fitted SVI total variance on an 80-point strike grid at each fitted expiry slice. Greeks are not computed between expiries; the 3D view connects the fitted slices. The dashboard includes delta-space smile views with approximate 25$\Delta$ risk-reversal and butterfly metrics (computed at fixed log-moneyness anchors rather than at strikes solved to hit 25$\Delta$).
 </details>
 
 ---
@@ -127,7 +127,7 @@ cd vol-surface-engine
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Launch dashboard (synthetic mode works offline, live mode fetches real-time data)
+# Launch dashboard (synthetic mode works offline, live mode fetches delayed yfinance quotes)
 streamlit run dashboard/app.py
 
 # Run tests
