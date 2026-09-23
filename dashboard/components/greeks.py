@@ -2,9 +2,9 @@
 Greeks panel: Delta, Gamma, Vega surfaces from the fitted SVI surface.
 
 A common reason to construct a volatility surface is to price and hedge
-options.  This panel computes Black-Scholes Greeks using the fitted IV at
-each (strike, T) point, giving the sensitivity profile across the entire
-surface.
+options.  This panel computes Black-Scholes Greeks (call convention) from
+the fitted IV on a strike grid at each fitted expiry slice, giving the
+sensitivity profile across strike for every expiry.
 """
 
 from __future__ import annotations

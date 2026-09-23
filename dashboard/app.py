@@ -316,10 +316,10 @@ def main() -> None:
     # ── Tab 3: Greeks ────────────────────────────────────────────────────
     with tab_greeks:
         st.caption(
-            "**Greeks surface.** Black-Scholes sensitivities (Δ, Γ, ν, Θ) "
-            "computed from the fitted SVI surface across the full (strike, T) "
-            "grid. These are the quantities that drive hedging and risk "
-            "management once a surface has been fit."
+            "**Greeks surface.** Black-Scholes sensitivities (Δ, Γ, ν, Θ, call "
+            "convention) computed from the fitted SVI total variance on a strike "
+            "grid at each fitted expiry slice. These are the quantities that drive "
+            "hedging and risk management once a surface has been fit."
         )
         render_greeks(chain, sp, surface.spot, surface.risk_free, surface.div_yield)
 

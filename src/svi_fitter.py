@@ -379,9 +379,13 @@ def interpolate_surface(
     """Interpolate the SVI surface at arbitrary (k, T) via linear
     interpolation of total variance between adjacent expiry slices.
 
-    Uses variance-linear interpolation (linear in w) which preserves
-    calendar-spread arbitrage-free property when individual slices are
-    arbitrage-free.
+    Interpolation is linear in w at fixed k. Between two slices this keeps
+    w non-decreasing in T at any k where the shorter-dated slice has total
+    variance no greater than the longer-dated one, so it adds no
+    calendar-spread violation of its own. It does not check the slices
+    themselves, and it does not check the Durrleman condition on the
+    interpolated slice. Outside the fitted range of T the nearest slice is
+    returned unchanged.
 
     Parameters
     ----------

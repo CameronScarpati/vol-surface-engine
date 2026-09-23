@@ -69,8 +69,12 @@ def durrleman_condition(
 ) -> np.ndarray:
     """Evaluate the Durrleman function g(k) on a grid.
 
-    g(k) >= 0 everywhere is necessary and sufficient for the absence
-    of butterfly arbitrage in the given slice.
+    g(k) is evaluated only at the points in ``k``. A negative value flags
+    butterfly arbitrage at that point, but a check on a finite grid can
+    miss violations between grid points or outside the grid range: the
+    Vogt slice in ``tests/test_golden_values.py`` has g(k) < 0 for k
+    between about 0.64 and 1.26, which the default [-0.5, 0.5] grid does
+    not reach.
 
     Parameters
     ----------
