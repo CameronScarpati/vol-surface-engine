@@ -8,13 +8,13 @@ from src.arbitrage import (
     check_butterfly_arbitrage,
     check_calendar_arbitrage,
     durrleman_condition,
-    fit_svi_arbitrage_free,
+    fit_svi_butterfly_penalized,
     generate_diagnostics,
 )
 from src.svi_fitter import SVIParams, svi_total_variance
 
 # ---------------------------------------------------------------------------
-# Known arbitrage-free parameters
+# Known parameters with no butterfly violation on the test grid
 # ---------------------------------------------------------------------------
 # These satisfy the Gatheral & Jacquier sufficient conditions:
 #   a + b * sigma * sqrt(1 - rho^2) >= 0   (non-negative ATM variance)
@@ -121,36 +121,36 @@ class TestCheckCalendarArbitrage:
 
 
 # ---------------------------------------------------------------------------
-# Arbitrage-free fitting
+# Butterfly-penalized fitting
 # ---------------------------------------------------------------------------
-class TestFitSVIArbitrageFree:
-    """Test the penalty-method constrained fitter."""
+class TestFitSVIButterflyPenalized:
+    """Test the butterfly-penalized refit."""
 
     def _generate_smile(self, params: SVIParams, n: int = 40) -> tuple[np.ndarray, np.ndarray]:
         k = np.linspace(-0.4, 0.4, n)
         w = svi_total_variance(k, params.a, params.b, params.rho, params.m, params.sigma)
         return k, w
 
-    def test_already_arb_free(self):
-        """When input is already arb-free, should return quickly."""
+    def test_clean_input_passes_butterfly_check(self):
+        """Returns the unconstrained fit when it already passes the butterfly check."""
         k, w = self._generate_smile(_AF_PARAMS)
-        fitted = fit_svi_arbitrage_free(k, w)
+        fitted = fit_svi_butterfly_penalized(k, w)
         assert check_butterfly_arbitrage(K_GRID, fitted) is True
         assert fitted.rmse < 1e-4
 
-    def test_noisy_arb_free_data(self):
-        """Noisy data from arb-free params should still yield arb-free fit."""
+    def test_noisy_input_passes_butterfly_check(self):
+        """Noisy data from butterfly-clean params still gives a fit that passes the check."""
         k, w = self._generate_smile(_AF_PARAMS)
         rng = np.random.default_rng(99)
         w_noisy = w + rng.normal(0, 5e-4, size=len(w))
         w_noisy = np.maximum(w_noisy, 1e-6)
 
-        fitted = fit_svi_arbitrage_free(k, w_noisy)
+        fitted = fit_svi_butterfly_penalized(k, w_noisy)
         assert check_butterfly_arbitrage(K_GRID, fitted) is True
 
     def test_returns_svi_params(self):
         k, w = self._generate_smile(_AF_PARAMS)
-        fitted = fit_svi_arbitrage_free(k, w)
+        fitted = fit_svi_butterfly_penalized(k, w)
         assert isinstance(fitted, SVIParams)
         assert fitted.n_points == len(k)
 
@@ -278,7 +278,7 @@ class TestSPYIntegration:
         ivs = np.array([self._synthetic_iv(k, T) for k in k_arr])
         w_arr = ivs**2 * T
 
-        fitted = fit_svi_arbitrage_free(k_arr, w_arr)
+        fitted = fit_svi_butterfly_penalized(k_arr, w_arr)
         k_check = np.linspace(-0.5, 0.5, 500)
 
         assert check_butterfly_arbitrage(k_check, fitted), (

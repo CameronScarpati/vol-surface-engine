@@ -136,7 +136,7 @@ def _render_butterfly(
         if label in diagnostics.butterfly_violations:
             min_g_val = float(np.min(diagnostics.butterfly_violations[label]))
         else:
-            # Slice is arb-free; compute min g(k) for reference
+            # Slice passes the butterfly check; compute min g(k) for reference
             for _, row in slice_params.iterrows():
                 if str(row.get("expiry", f"T={row['T']:.4f}")) == label:
                     params = SVIParams(

@@ -2,7 +2,7 @@
 Phase 4: No-Arbitrage Constraints
 
 Checks static no-arbitrage conditions on the fitted SVI surface (and provides
-an optional penalized refit, `fit_svi_arbitrage_free`, that is not used by the
+an optional penalized refit, `fit_svi_butterfly_penalized`, that is not used by the
 default build pipeline):
 
 1. **Butterfly arbitrage** (Durrleman 2005) — the risk-neutral density must
@@ -50,7 +50,7 @@ __all__ = [
     "check_butterfly_arbitrage",
     "check_calendar_arbitrage",
     "durrleman_condition",
-    "fit_svi_arbitrage_free",
+    "fit_svi_butterfly_penalized",
     "generate_diagnostics",
 ]
 
@@ -210,7 +210,7 @@ def _to_params_list(
 
 
 # ---------------------------------------------------------------------------
-# Arbitrage-free SVI fitting (penalty method)
+# Butterfly-penalized SVI fitting (penalty method)
 # ---------------------------------------------------------------------------
 def _butterfly_penalty(
     x: np.ndarray,
@@ -218,8 +218,8 @@ def _butterfly_penalty(
 ) -> float:
     """Sum of squared Durrleman violations on the grid.
 
-    Returns sum( max(0, -g(k_i))^2 ) which is zero when the surface
-    is arbitrage-free and positive otherwise.
+    Returns sum( max(0, -g(k_i))^2 ) which is zero when no grid point
+    violates the Durrleman condition and positive otherwise.
     """
     params = SVIParams.from_array(x)
     g = durrleman_condition(k_grid, params)
@@ -227,7 +227,7 @@ def _butterfly_penalty(
     return float(np.sum(violations**2))
 
 
-def fit_svi_arbitrage_free(
+def fit_svi_butterfly_penalized(
     k: np.ndarray,
     w: np.ndarray,
     weights: np.ndarray | None = None,
@@ -237,13 +237,21 @@ def fit_svi_arbitrage_free(
     k_grid_points: int = _DEFAULT_K_POINTS,
     max_penalty_iters: int = 10,
 ) -> SVIParams:
-    """Fit SVI with progressive penalty to enforce Durrleman condition.
+    """Refit SVI with a growing penalty on Durrleman (butterfly) violations.
 
     Algorithm:
         1. Fit unconstrained SVI.
         2. If butterfly violations exist, re-fit with penalty
            lambda * sum(max(0, -g(k_i))^2).
-        3. Increase lambda until violations vanish or lambda_max is reached.
+        3. Increase lambda until the check grid shows no violation, lambda
+           exceeds lambda_max, or max_penalty_iters rounds have run.
+
+    The check grid is k_grid_points evenly spaced points from min(k) - 0.1
+    to max(k) + 0.1, not the default [-0.5, 0.5] diagnostics grid. Only the
+    butterfly condition is penalized, and only at those points, so a passing
+    result has g(k) >= -1e-10 at the check-grid points; violations between
+    or beyond them are not ruled out, and calendar spreads are not
+    considered here.
 
     Parameters
     ----------
@@ -258,14 +266,17 @@ def fit_svi_arbitrage_free(
     lambda_growth : float
         Factor by which lambda increases each iteration.
     k_grid_points : int
-        Number of grid points for Durrleman evaluation.
+        Number of check-grid points, spaced evenly from min(k) - 0.1 to
+        max(k) + 0.1, at which the Durrleman condition is evaluated.
     max_penalty_iters : int
         Maximum number of penalty escalation rounds.
 
     Returns
     -------
     SVIParams
-        Arbitrage-free (or best-effort) fitted parameters.
+        Fitted parameters with no butterfly violation on the check grid,
+        or the last penalized fit when lambda_max or max_penalty_iters stops
+        the loop first.
     """
     k_check = np.linspace(
         float(np.min(k)) - 0.1,
@@ -277,11 +288,13 @@ def fit_svi_arbitrage_free(
     params = fit_svi_slice(k, w, weights=weights)
 
     if check_butterfly_arbitrage(k_check, params):
-        logger.info("Unconstrained fit is already arbitrage-free")
+        logger.info("Unconstrained fit already passes the butterfly check")
         return params
 
     # Step 2: progressive penalty
     lam = lambda_init
+    last_lam = lam
+    rounds = 0
     for iteration in range(max_penalty_iters):
         penalty_fn = lambda x: _butterfly_penalty(x, k_check)  # noqa: E731
 
@@ -293,10 +306,12 @@ def fit_svi_arbitrage_free(
             penalty_lambda=lam,
             n_restarts=12,
         )
+        last_lam = lam
+        rounds = iteration + 1
 
         if check_butterfly_arbitrage(k_check, params):
             logger.info(
-                "Arbitrage-free fit achieved at lambda=%.1f (iteration %d)",
+                "Butterfly check passed at lambda=%.1f (iteration %d)",
                 lam,
                 iteration + 1,
             )
@@ -307,9 +322,10 @@ def fit_svi_arbitrage_free(
             break
 
     logger.warning(
-        "Could not fully eliminate butterfly arbitrage "
-        "(lambda reached %.1e); returning best-effort fit",
-        lam,
+        "Butterfly check still failing on the check grid after %d rounds "
+        "(last lambda=%.1e); returning the last penalized fit",
+        rounds,
+        last_lam,
     )
     return params
 

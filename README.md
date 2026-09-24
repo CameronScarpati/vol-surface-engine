@@ -4,7 +4,7 @@
 
 A learning project: an end-to-end volatility surface tool that fetches live equity options data, extracts implied volatility via Newton-Raphson root-finding, calibrates per-expiry SVI parameterizations (Gatheral 2004), checks no-arbitrage conditions (Durrleman's butterfly condition and calendar-spread monotonicity) and reports violations as diagnostics, and exposes the full surface, including Dupire local vol, Greeks, and residual diagnostics, through an interactive Streamlit dashboard.
 
-**5,700+ lines of Python** across a modular numerical engine (1,688 lines), interactive dashboard (2,264 lines), and a test suite (1,890 lines, 160 tests). Built from scratch with a focus on numerical robustness and clean architecture. It is exploratory rather than production pricing infrastructure; see [Scope and Limitations](#scope-and-limitations).
+**5,700+ lines of Python** across a modular numerical engine (1,704 lines), interactive dashboard (2,264 lines), and a test suite (1,890 lines, 160 tests). Built from scratch with a focus on numerical robustness and clean architecture. It is exploratory rather than production pricing infrastructure; see [Scope and Limitations](#scope-and-limitations).
 
 ---
 
@@ -53,12 +53,12 @@ The chain is generated from known smile and term-structure formulas with a fixed
 |-----------|---------------|----------------|
 | **IV Extraction** | Newton-Raphson with Brenner-Subrahmanyam seed + Brent fallback; $\varepsilon < 10^{-10}$ | Robust convergence even in low-vega regions where naïve solvers fail |
 | **SVI Calibration** | 5-parameter raw SVI per slice; multi-start L-BFGS-B (9 starts: 1 heuristic plus 8 random, one RNG with fixed seed 42); OI-weighted objective | Captures smile shape with low total-variance RMSE (< 0.01 on synthetic round-trip data) while avoiding local minima |
-| **Arbitrage Diagnostics** | Durrleman butterfly condition $g(k) \geq 0$; calendar-spread $\partial w / \partial T \geq 0$ | Detects static-arbitrage violations and flags them; a penalized arbitrage-aware refit is implemented but is not enabled in the default build (the surface is arbitrage-checked, not guaranteed arbitrage-free) |
+| **Arbitrage Diagnostics** | Durrleman butterfly condition $g(k) \geq 0$; calendar-spread $\partial w / \partial T \geq 0$ | Detects static-arbitrage violations and flags them; a butterfly-penalized refit is implemented but is not enabled in the default build (the surface is arbitrage-checked, not guaranteed arbitrage-free) |
 | **Local Volatility** | Dupire (1994) via analytic SVI derivatives + finite-difference $\partial w / \partial T$; Gaussian-smoothed output | Extracts instantaneous diffusion coefficient implied by the market |
 | **Greeks** | Black-Scholes $\Delta$, $\Gamma$, $\nu$, $\Theta$ (call convention) on an 80-point strike grid at each fitted expiry slice | Greeks profiles across strike for every fitted expiry, rather than per-contract point estimates |
 | **Data Pipeline** | Adaptive multi-stage filtering: volume/OI, moneyness bounds, bid-ask validation, MAD-based outlier removal | Handles noisy real-world data: wide spreads flagged, stale quotes removed |
 | **Dashboard** | 8 interactive Plotly panels in Streamlit; live + synthetic modes | Full analytical toolkit: 3D surface, smile slices, delta-space, residual heatmap, arbitrage diagnostics |
-| **Testing** | 160 tests (pytest); unit tests per module, golden values pinned to external references, end-to-end integration; CI on Python 3.10–3.12 | Round-trip IV recovery plus values computed outside the codebase (textbook Black-Scholes cases, high-precision recomputation, a known arbitrage-violating SVI slice from the literature) |
+| **Testing** | 160 tests (pytest); unit tests per module, golden values pinned to external references, end-to-end integration; CI on Python 3.10 to 3.13 | Round-trip IV recovery plus values computed outside the codebase (textbook Black-Scholes cases, high-precision recomputation, a known arbitrage-violating SVI slice from the literature) |
 
 ---
 
@@ -97,7 +97,7 @@ $$g(k) = \left(1 - \frac{k w'}{2w}\right)^2 - \frac{(w')^2}{4}\left(\frac{1}{w} 
 
 **Calendar-spread arbitrage.** Total variance must be non-decreasing in time: $\partial w / \partial T \geq 0$.
 
-A penalized refit that escalates $\lambda$ to push $g(k) \geq 0$ is implemented (`fit_svi_arbitrage_free` in `arbitrage.py`), but the default `build_surface` pipeline only detects and reports violations through `generate_diagnostics`; it does not invoke the penalized refit. The surface is therefore arbitrage-checked, not guaranteed arbitrage-free.
+A penalized refit that escalates $\lambda$ to push $g(k) \geq 0$ is implemented (`fit_svi_butterfly_penalized` in `arbitrage.py`), but the default `build_surface` pipeline only detects and reports violations through `generate_diagnostics`; it does not invoke the penalized refit. The surface is therefore arbitrage-checked, not guaranteed arbitrage-free.
 </details>
 
 <details>
@@ -202,7 +202,7 @@ vol-surface-engine/
 | **Numerical Engine** | Python, NumPy, SciPy (L-BFGS-B, Brent root-finding), Pandas |
 | **Visualization** | Plotly (3D surfaces, interactive charts), Streamlit |
 | **Market Data** | yfinance (options chains, spot prices), FRED API (risk-free rate) |
-| **Testing & CI** | pytest (160 tests), GitHub Actions (Python 3.10–3.12 matrix) |
+| **Testing & CI** | pytest (160 tests), GitHub Actions (Python 3.10 to 3.13 matrix) |
 | **Code Quality** | Ruff (linting + formatting), mypy (type checking), pyproject.toml configuration |
 
 ---
@@ -211,7 +211,7 @@ vol-surface-engine/
 
 This is a personal learning project for working through the mechanics of volatility surface construction. It is exploratory rather than production pricing infrastructure, and a few things are worth stating plainly:
 
-- **Arbitrage is checked, not enforced.** The default `build_surface` pipeline fits SVI per slice and then runs `generate_diagnostics` to detect butterfly and calendar-spread violations. A penalized arbitrage-aware refit (`fit_svi_arbitrage_free`) exists but is not wired into the default build, so the surface is arbitrage-checked, not guaranteed arbitrage-free.
+- **Arbitrage is checked, not enforced.** The default `build_surface` pipeline fits SVI per slice and then runs `generate_diagnostics` to detect butterfly and calendar-spread violations. A butterfly-penalized refit (`fit_svi_butterfly_penalized`) exists but is not wired into the default build, so the surface is arbitrage-checked, not guaranteed arbitrage-free.
 - **Accuracy numbers are on synthetic data.** The reported fit quality (R² and RMSE) comes from round-trip tests on synthetic Black-Scholes prices. RMSE is measured in total-variance space, not implied-vol points. Live yfinance chains are noisier, and fit quality on real data varies with liquidity and quote staleness.
 - **Test scope.** The integration round-trip validates the IV engine (price to IV and back), and the golden-value suite pins module-level results (Black-Scholes prices, SVI values, Durrleman diagnostics) against references computed outside the codebase. There is still no end-to-end validation of SVI calibration, interpolation, Greeks, or local vol against an independent full-pipeline ground truth.
 - **Approximate delta-space metrics.** The 25-delta risk-reversal and butterfly are computed at fixed log-moneyness anchors, not by solving for exact 25-delta strikes, so they are approximations of the desk convention.

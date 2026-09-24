@@ -15,7 +15,7 @@ import pytest
 from src.arbitrage import (
     check_butterfly_arbitrage,
     durrleman_condition,
-    fit_svi_arbitrage_free,
+    fit_svi_butterfly_penalized,
     generate_diagnostics,
 )
 from src.iv_engine import bs_price, bs_vega, compute_all_iv, implied_volatility
@@ -124,8 +124,8 @@ class TestSVIToArbitragePipeline:
         assert len(diag.butterfly_free) == len(slice_params)
         assert isinstance(diag.calendar_free, bool)
 
-    def test_arbitrage_free_fitting_improves_surface(self):
-        """fit_svi_arbitrage_free should produce Durrleman-compliant slices."""
+    def test_butterfly_penalized_fit_passes_durrleman_check(self):
+        """fit_svi_butterfly_penalized should return a slice that passes the Durrleman check on [-0.5, 0.5]."""
         chain = make_synthetic_chain(dte_days=[90], n_strikes=30, seed=77)
         chain_iv = compute_all_iv(chain)
 
@@ -138,7 +138,7 @@ class TestSVIToArbitragePipeline:
         k_arr = grouped["k"].values
         w_arr = grouped["w"].values
 
-        fitted = fit_svi_arbitrage_free(k_arr, w_arr)
+        fitted = fit_svi_butterfly_penalized(k_arr, w_arr)
         k_check = np.linspace(-0.5, 0.5, 500)
         assert check_butterfly_arbitrage(k_check, fitted)
 
