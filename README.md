@@ -54,7 +54,7 @@ The chain is generated from known smile and term-structure formulas with a fixed
 | **IV Extraction** | Newton-Raphson with Brenner-Subrahmanyam seed + Brent fallback; $\varepsilon < 10^{-10}$ | Robust convergence even in low-vega regions where naïve solvers fail |
 | **SVI Calibration** | 5-parameter raw SVI per slice; multi-start L-BFGS-B (9 starts: 1 heuristic plus 8 random, one RNG with fixed seed 42); OI-weighted objective | Captures smile shape with low total-variance RMSE (< 0.01 on synthetic round-trip data) while avoiding local minima |
 | **Arbitrage Diagnostics** | Durrleman butterfly condition $g(k) \geq 0$; calendar-spread $\partial w / \partial T \geq 0$ | Detects static-arbitrage violations and flags them; a butterfly-penalized refit is implemented but is not enabled in the default build (the surface is arbitrage-checked, not guaranteed arbitrage-free) |
-| **Local Volatility** | Dupire (1994) via analytic SVI derivatives + finite-difference $\partial w / \partial T$; Gaussian-smoothed output | Extracts instantaneous diffusion coefficient implied by the market |
+| **Local Volatility** | Dupire (1994) via analytic SVI derivatives + finite-difference $\partial w / \partial T$; Gaussian-smoothed output | Estimates the instantaneous volatility implied by the fitted surface, masked to 0.02 to 0.80 and smoothed for display |
 | **Greeks** | Black-Scholes $\Delta$, $\Gamma$, $\nu$, $\Theta$ (call convention) on an 80-point strike grid at each fitted expiry slice | Greeks profiles across strike for every fitted expiry, rather than per-contract point estimates |
 | **Data Pipeline** | Adaptive multi-stage filtering: volume/OI, moneyness bounds, bid-ask validation, MAD-based outlier removal | Handles noisy real-world data: wide spreads flagged, stale quotes removed |
 | **Dashboard** | 8 interactive Plotly panels in Streamlit; live + synthetic modes | Full analytical toolkit: 3D surface, smile slices, delta-space, residual heatmap, arbitrage diagnostics |
@@ -103,11 +103,11 @@ A penalized refit that escalates $\lambda$ to push $g(k) \geq 0$ is implemented 
 <details>
 <summary><strong>Local Volatility (Dupire)</strong></summary>
 
-The fitted SVI surface is used to extract Dupire (1994) local volatility, the unique diffusion coefficient consistent with observed European option prices:
+The fitted SVI surface is used to extract Dupire (1994) local volatility. In theory it is the unique diffusion coefficient consistent with a complete, arbitrage-free set of European option prices; here it is computed from the fitted slices, so it inherits their fit error:
 
 $$\sigma_{\text{loc}}^2(K,T) = \frac{\partial w / \partial T}{\left(1 - \frac{k w'}{2w}\right)^2 - \frac{(w')^2}{4}\left(\frac{1}{w} + \frac{1}{4}\right) + \frac{w''}{2}}$$
 
-where the numerator uses finite differences across SVI slices and the denominator uses analytical SVI derivatives.
+where the numerator uses finite differences across SVI slices and the denominator uses analytical SVI derivatives. The dashboard then drops values outside 0.02 to 0.80 as numerically unstable and applies a Gaussian smooth, so the plotted surface is a display estimate rather than the exact Dupire solution.
 </details>
 
 <details>

@@ -326,11 +326,11 @@ def main() -> None:
     # ── Tab 4: Local Volatility ──────────────────────────────────────────
     with tab_localvol:
         st.caption(
-            "**Local volatility (Dupire).** The unique diffusion coefficient "
-            "σ_loc(K, T) consistent with the fitted implied volatility surface, "
-            "computed via Dupire's formula. Local vol reveals the instantaneous "
-            "volatility structure that the market prices imply, bridging the "
-            "quoting convention (implied vol) to the risk-neutral dynamics."
+            "**Local volatility (Dupire).** σ_loc(K, T) computed from the fitted "
+            "implied volatility surface via Dupire's formula. Values outside "
+            "0.02 to 0.80 are masked as numerically unstable and the result is "
+            "Gaussian-smoothed, so this is a display estimate of the "
+            "instantaneous volatility the fitted surface implies."
         )
         render_local_vol(chain, sp, surface.spot, surface.risk_free, surface.div_yield)
 
