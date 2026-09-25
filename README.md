@@ -4,7 +4,7 @@
 
 A learning project: an end-to-end volatility surface tool that fetches live equity options data, extracts implied volatility via Newton-Raphson root-finding, calibrates per-expiry SVI parameterizations (Gatheral 2004), checks no-arbitrage conditions (Durrleman's butterfly condition and calendar-spread monotonicity) and reports violations as diagnostics, and exposes the full surface, including Dupire local vol, Greeks, and residual diagnostics, through an interactive Streamlit dashboard.
 
-**5,700+ lines of Python** across a modular numerical engine (1,704 lines), interactive dashboard (2,264 lines), and a test suite (1,890 lines, 160 tests). Built from scratch with a focus on numerical robustness and clean architecture. It is exploratory rather than production pricing infrastructure; see [Scope and Limitations](#scope-and-limitations).
+The Python code is split across a modular numerical engine, an interactive Streamlit dashboard, and a pytest suite. Built from scratch with a focus on numerical robustness and clean architecture. It is exploratory rather than production pricing infrastructure; see [Scope and Limitations](#scope-and-limitations).
 
 ---
 
@@ -58,7 +58,7 @@ The chain is generated from known smile and term-structure formulas with a fixed
 | **Greeks** | Black-Scholes $\Delta$, $\Gamma$, $\nu$, $\Theta$ (call convention) on an 80-point strike grid at each fitted expiry slice | Greeks profiles across strike for every fitted expiry, rather than per-contract point estimates |
 | **Data Pipeline** | Adaptive multi-stage filtering: volume/OI, moneyness bounds, bid-ask validation, MAD-based outlier removal | Handles noisy real-world data: wide spreads flagged, stale quotes removed |
 | **Dashboard** | 8 interactive Plotly panels in Streamlit; live + synthetic modes | Full analytical toolkit: 3D surface, smile slices, delta-space, residual heatmap, arbitrage diagnostics |
-| **Testing** | 160 tests (pytest); unit tests per module, golden values pinned to external references, end-to-end integration; CI on Python 3.10 to 3.13 | Round-trip IV recovery plus values computed outside the codebase (textbook Black-Scholes cases, high-precision recomputation, a known arbitrage-violating SVI slice from the literature) |
+| **Testing** | pytest; unit tests per module, golden values pinned to external references, end-to-end integration; CI on Python 3.10 to 3.13 | Round-trip IV recovery plus values computed outside the codebase (textbook Black-Scholes cases, high-precision recomputation, a known arbitrage-violating SVI slice from the literature) |
 
 ---
 
@@ -202,7 +202,7 @@ vol-surface-engine/
 | **Numerical Engine** | Python, NumPy, SciPy (L-BFGS-B, Brent root-finding), Pandas |
 | **Visualization** | Plotly (3D surfaces, interactive charts), Streamlit |
 | **Market Data** | yfinance (options chains, spot prices), FRED API (risk-free rate) |
-| **Testing & CI** | pytest (160 tests), GitHub Actions (Python 3.10 to 3.13 matrix) |
+| **Testing & CI** | pytest, GitHub Actions (Python 3.10 to 3.13 matrix) |
 | **Code Quality** | Ruff (linting + formatting), mypy (type checking), pyproject.toml configuration |
 
 ---
